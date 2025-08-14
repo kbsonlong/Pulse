@@ -1,0 +1,41 @@
+# 数据库配置文件
+database:
+  # PostgreSQL 主数据库配置
+  postgres:
+    host: ${DB_HOST:localhost}
+    port: ${DB_PORT:5432}
+    user: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    dbname: ${DB_NAME:alert_management}
+    sslmode: ${DB_SSLMODE:disable}
+    timezone: ${DB_TIMEZONE:UTC}
+    max_open_conns: ${DB_MAX_OPEN_CONNS:25}
+    max_idle_conns: ${DB_MAX_IDLE_CONNS:5}
+    conn_max_lifetime: ${DB_CONN_MAX_LIFETIME:300s}
+    conn_max_idle_time: ${DB_CONN_MAX_IDLE_TIME:60s}
+
+  # TimescaleDB 扩展配置
+  timescale:
+    enabled: ${TIMESCALE_ENABLED:true}
+    chunk_time_interval: ${TIMESCALE_CHUNK_INTERVAL:1d}
+    retention_policy: ${TIMESCALE_RETENTION:30d}
+
+  # 迁移配置
+  migration:
+    path: ${MIGRATION_PATH:./migrations}
+    table: ${MIGRATION_TABLE:schema_migrations}
+    lock_timeout: ${MIGRATION_LOCK_TIMEOUT:15m}
+
+# Redis 配置（用于缓存和消息队列）
+redis:
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD:}
+  db: ${REDIS_DB:0}
+  pool_size: ${REDIS_POOL_SIZE:10}
+  min_idle_conns: ${REDIS_MIN_IDLE_CONNS:2}
+  dial_timeout: ${REDIS_DIAL_TIMEOUT:5s}
+  read_timeout: ${REDIS_READ_TIMEOUT:3s}
+  write_timeout: ${REDIS_WRITE_TIMEOUT:3s}
+  pool_timeout: ${REDIS_POOL_TIMEOUT:4s}
+  idle_timeout: ${REDIS_IDLE_TIMEOUT:5m}

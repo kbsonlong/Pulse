@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  # 告警管理平台主服务
+  alert-platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - GIN_MODE=debug
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=alert_user
+      - DB_PASSWORD=alert_password
+      - DB_NAME=alert_management
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./configs:/root/configs
+      - ./logs:/root/logs
+    networks:
+      - alert-network
+    restart: unless-stopped
+
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=alert_user
+      - POSTGRES_PASSWORD=alert_password
+      - POSTGRES_DB=alert_management
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - alert-network
+    restart: unless-stopped
+
+  # TimescaleDB (基于PostgreSQL)
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    environment:
+      - POSTGRES_USER=timescale_user
+      - POSTGRES_PASSWORD=timescale_password
+      - POSTGRES_DB=timescale_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    networks:
+      - alert-network
+    restart: unless-stopped
+
+  # Redis 缓存和消息队列
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - alert-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Elasticsearch (用于日志和搜索)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - alert-network
+    restart: unless-stopped
+
+  # Grafana (可视化)
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deployments/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - alert-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - timescaledb
+
+  # Prometheus (监控指标收集)
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - alert-network
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+volumes:
+  postgres_data:
+  timescale_data:
+  redis_data:
+  elasticsearch_data:
+  grafana_data:
+  prometheus_data:
+
+networks:
+  alert-network:
+    driver: bridge

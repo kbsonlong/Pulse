@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # 开发环境PostgreSQL
+  postgres-dev:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=alert_user
+      - POSTGRES_PASSWORD=alert_password
+      - POSTGRES_DB=alert_management_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./scripts/init-dev-db.sql:/docker-entrypoint-initdb.d/init-dev-db.sql
+    networks:
+      - alert-dev-network
+    restart: unless-stopped
+
+  # 开发环境Redis
+  redis-dev:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - alert-dev-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
+
+networks:
+  alert-dev-network:
+    driver: bridge
