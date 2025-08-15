@@ -15,6 +15,7 @@ const (
 	UserRoleOperator  UserRole = "operator"  // 运维工程师
 	UserRoleViewer    UserRole = "viewer"    // 只读用户
 	UserRoleDeveloper UserRole = "developer" // 开发者
+	UserRoleGuest     UserRole = "guest"     // 访客用户
 )
 
 // UserStatus 用户状态枚举
@@ -155,7 +156,7 @@ func (u *User) Validate() error {
 // IsValid 检查用户角色是否有效
 func (r UserRole) IsValid() bool {
 	switch r {
-	case UserRoleAdmin, UserRoleOperator, UserRoleViewer, UserRoleDeveloper:
+	case UserRoleAdmin, UserRoleOperator, UserRoleViewer, UserRoleDeveloper, UserRoleGuest:
 		return true
 	default:
 		return false

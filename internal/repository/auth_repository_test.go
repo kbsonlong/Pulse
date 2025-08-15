@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"demo02/internal/models"
+	"Pulse/internal/models"
 )
 
 func setupAuthRepositoryTest(t *testing.T) (*authRepository, sqlmock.Sqlmock, func()) {
@@ -33,16 +33,16 @@ func TestAuthRepository_CreateSession(t *testing.T) {
 	defer cleanup()
 
 	session := &models.UserSession{
-		ID:        uuid.New().String(),
-		UserID:    uuid.New().String(),
-		Token:     "session_token_123",
-		UserAgent: "Mozilla/5.0",
-		IPAddress: "192.168.1.1",
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+		ID:           uuid.New().String(),
+		UserID:       uuid.New().String(),
+		SessionToken: "session_token_123",
+		UserAgent:    "Mozilla/5.0",
+		IPAddress:    "192.168.1.1",
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
 	}
 
 	mock.ExpectExec(`INSERT INTO user_sessions`).WithArgs(
-		session.ID, session.UserID, session.Token, session.UserAgent,
+		session.ID, session.UserID, session.SessionToken, session.UserAgent,
 		session.IPAddress, session.ExpiresAt, sqlmock.AnyArg(), sqlmock.AnyArg(),
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -57,18 +57,18 @@ func TestAuthRepository_GetSession(t *testing.T) {
 
 	sessionID := uuid.New().String()
 	expectedSession := &models.UserSession{
-		ID:        sessionID,
-		UserID:    uuid.New().String(),
-		Token:     "session_token_123",
-		UserAgent: "Mozilla/5.0",
-		IPAddress: "192.168.1.1",
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+		ID:           sessionID,
+		UserID:       uuid.New().String(),
+		SessionToken: "session_token_123",
+		UserAgent:    "Mozilla/5.0",
+		IPAddress:    "192.168.1.1",
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
 	}
 
 	rows := sqlmock.NewRows([]string{
 		"id", "user_id", "token", "user_agent", "ip_address", "expires_at", "created_at", "updated_at",
 	}).AddRow(
-		expectedSession.ID, expectedSession.UserID, expectedSession.Token,
+		expectedSession.ID, expectedSession.UserID, expectedSession.SessionToken,
 		expectedSession.UserAgent, expectedSession.IPAddress, expectedSession.ExpiresAt,
 		time.Now(), time.Now(),
 	)
@@ -78,7 +78,7 @@ func TestAuthRepository_GetSession(t *testing.T) {
 	session, err := repo.GetSession(context.Background(), sessionID)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedSession.ID, session.ID)
-	assert.Equal(t, expectedSession.Token, session.Token)
+	assert.Equal(t, expectedSession.SessionToken, session.SessionToken)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

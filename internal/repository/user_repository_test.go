@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"demo02/internal/models"
+	"Pulse/internal/models"
 )
 
 func setupUserRepositoryTest(t *testing.T) (*userRepository, sqlmock.Sqlmock, func()) {

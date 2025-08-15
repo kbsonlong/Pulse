@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"demo02/internal/models"
+	"Pulse/internal/models"
 )
 
 func setupPermissionRepositoryTest(t *testing.T) (*permissionRepository, sqlmock.Sqlmock, func()) {

@@ -230,31 +230,7 @@ type TicketRepository interface {
 	CleanupClosed(ctx context.Context, before time.Time) (int64, error)
 }
 
-// AuthRepository 认证仓储接口
-type AuthRepository interface {
-	// 会话管理
-	CreateSession(ctx context.Context, session *models.UserSession) error
-	GetSession(ctx context.Context, sessionID string) (*models.UserSession, error)
-	GetUserSessions(ctx context.Context, userID string) ([]*models.UserSession, error)
-	UpdateSessionLastActivity(ctx context.Context, sessionID string, lastActivity time.Time) error
-	DeleteSession(ctx context.Context, sessionID string) error
-	DeleteUserSessions(ctx context.Context, userID string) error
-	CleanupExpiredSessions(ctx context.Context) (int64, error)
 
-	// 刷新令牌管理
-	CreateRefreshToken(ctx context.Context, token *models.RefreshToken) error
-	GetRefreshToken(ctx context.Context, tokenID string) (*models.RefreshToken, error)
-	GetUserRefreshTokens(ctx context.Context, userID string) ([]*models.RefreshToken, error)
-	RevokeRefreshToken(ctx context.Context, tokenID string) error
-	RevokeUserRefreshTokens(ctx context.Context, userID string) error
-	CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)
-
-	// 登录尝试记录
-	CreateLoginAttempt(ctx context.Context, attempt *models.LoginAttempt) error
-	GetLoginAttempts(ctx context.Context, identifier string, since time.Time) ([]*models.LoginAttempt, error)
-	GetFailedLoginAttempts(ctx context.Context, identifier string, since time.Time) (int, error)
-	CleanupOldLoginAttempts(ctx context.Context, before time.Time) (int64, error)
-}
 
 // KnowledgeRepository 知识库仓储接口
 type KnowledgeRepository interface {
