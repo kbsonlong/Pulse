@@ -324,7 +324,7 @@ func TestKnowledgeRepository_Approve(t *testing.T) {
 	reviewerID := uuid.New().String()
 	comment := "审批通过"
 
-	mock.ExpectExec(`UPDATE knowledge_articles SET status = \$1, reviewer_id = \$2, review_comment = \$3, updated_at = \$4 WHERE id = \$5 AND deleted_at IS NULL AND status = \$6`).WithArgs(
+	mock.ExpectExec(`UPDATE knowledge_articles SET status = \$1, reviewer_id = \$2, review_comment = \$3, published_at = \$4, updated_at = \$4 WHERE id = \$5 AND deleted_at IS NULL AND status = \$6`).WithArgs(
 		models.KnowledgeStatusPublished, reviewerID, &comment, sqlmock.AnyArg(), knowledgeID, models.KnowledgeStatusReview,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 

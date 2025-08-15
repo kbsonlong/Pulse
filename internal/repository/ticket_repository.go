@@ -74,17 +74,18 @@ func (r *ticketRepository) Create(ctx context.Context, ticket *models.Ticket) er
 
 	query := `
 		INSERT INTO tickets (
-			id, title, description, status, priority, category, type, source,
+			id, number, title, description, status, priority, category, type, source,
 			reporter_id, assignee_id, tags, custom_fields, due_date, sla_deadline,
 			created_at, updated_at
 		) VALUES (
-			:id, :title, :description, :status, :priority, :category, :type, :source,
+			:id, :number, :title, :description, :status, :priority, :category, :type, :source,
 			:reporter_id, :assignee_id, :tags, :custom_fields, :due_date, :sla_deadline,
 			:created_at, :updated_at
 		)`
 
 	_, err = sqlx.NamedExecContext(ctx, r.getExecutor(), query, map[string]interface{}{
 		"id":            ticket.ID,
+		"number":        ticket.Number,
 		"title":         ticket.Title,
 		"description":   ticket.Description,
 		"status":        ticket.Status,
@@ -115,14 +116,14 @@ func (r *ticketRepository) GetByID(ctx context.Context, id string) (*models.Tick
 	var tagsJSON, customFieldsJSON string
 
 	query := `
-		SELECT id, title, description, status, priority, category, type, source,
+		SELECT id, number, title, description, status, priority, category, type, source,
 		       reporter_id, assignee_id, tags, custom_fields, due_date, sla_deadline,
 		       resolved_at, closed_at, created_at, updated_at
 		FROM tickets 
 		WHERE id = $1 AND deleted_at IS NULL`
 
 	err := r.getExecutor().QueryRowxContext(ctx, query, id).Scan(
-		&ticket.ID, &ticket.Title, &ticket.Description, &ticket.Status, &ticket.Priority,
+		&ticket.ID, &ticket.Number, &ticket.Title, &ticket.Description, &ticket.Status, &ticket.Priority,
 		&ticket.Category, &ticket.Type, &ticket.Source, &ticket.ReporterID, &ticket.AssigneeID,
 		&tagsJSON, &customFieldsJSON, &ticket.DueDate, &ticket.SLADeadline,
 		&ticket.ResolvedAt, &ticket.ClosedAt, &ticket.CreatedAt, &ticket.UpdatedAt,
@@ -345,7 +346,7 @@ func (r *ticketRepository) List(ctx context.Context, filter *models.TicketFilter
 
 	// 构建查询
 	query := fmt.Sprintf(`
-		SELECT id, title, description, status, priority, category, type, source,
+		SELECT id, number, title, description, status, priority, category, type, source,
 		       reporter_id, assignee_id, tags, custom_fields, due_date, sla_deadline,
 		       resolved_at, closed_at, created_at, updated_at
 		FROM tickets %s
@@ -370,7 +371,7 @@ func (r *ticketRepository) List(ctx context.Context, filter *models.TicketFilter
 		var tagsJSON, customFieldsJSON string
 
 		err := rows.Scan(
-			&ticket.ID, &ticket.Title, &ticket.Description, &ticket.Status, &ticket.Priority,
+			&ticket.ID, &ticket.Number, &ticket.Title, &ticket.Description, &ticket.Status, &ticket.Priority,
 			&ticket.Category, &ticket.Type, &ticket.Source, &ticket.ReporterID, &ticket.AssigneeID,
 			&tagsJSON, &customFieldsJSON, &ticket.DueDate, &ticket.SLADeadline,
 			&ticket.ResolvedAt, &ticket.ClosedAt, &ticket.CreatedAt, &ticket.UpdatedAt,

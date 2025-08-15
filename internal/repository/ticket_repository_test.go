@@ -44,10 +44,12 @@ func TestTicketRepository_Create(t *testing.T) {
 	}
 
 	mock.ExpectExec("INSERT INTO tickets").WithArgs(
-		ticket.ID, ticket.Number, ticket.Title, ticket.Description,
-		ticket.Type, ticket.Status, ticket.Priority, ticket.Severity,
-		ticket.Source, ticket.ReporterID, ticket.ReporterName,
-		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+		ticket.ID, ticket.Number, ticket.Title, ticket.Description, ticket.Status,
+		ticket.Priority, sqlmock.AnyArg(), ticket.Type, ticket.Source, // category
+		ticket.ReporterID, sqlmock.AnyArg(), // assignee_id
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // tags, custom_fields JSON
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // due_date, sla_deadline
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // created_at, updated_at
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = repo.Create(context.Background(), ticket)
@@ -84,11 +86,11 @@ func TestTicketRepository_GetByID(t *testing.T) {
 	}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "title", "description", "status", "priority", "category", "type", "source",
+		"id", "number", "title", "description", "status", "priority", "category", "type", "source",
 		"reporter_id", "assignee_id", "tags", "custom_fields", "due_date", "sla_deadline",
 		"resolved_at", "closed_at", "created_at", "updated_at",
 	}).AddRow(
-		ticket.ID, ticket.Title, ticket.Description, ticket.Status, ticket.Priority,
+		ticket.ID, ticket.Number, ticket.Title, ticket.Description, ticket.Status, ticket.Priority,
 		nil, ticket.Type, ticket.Source, ticket.ReporterID, nil,
 		`["test","incident"]`, `{"key":"value"}`, nil, nil,
 		nil, nil, time.Now(), time.Now(),
@@ -132,9 +134,10 @@ func TestTicketRepository_Update(t *testing.T) {
 
 	mock.ExpectExec(`UPDATE tickets SET`).
 		WithArgs(
-			ticket.Title, ticket.Description, ticket.Status, ticket.Priority,
-			ticket.Type, ticket.AssigneeID, ticket.TeamID, string(tagsJSON),
-			string(customFieldsJSON), sqlmock.AnyArg(), ticket.ID,
+			ticket.ID, ticket.Title, ticket.Description, ticket.Status, ticket.Priority,
+			ticket.Category, ticket.Type, ticket.Source, ticket.AssigneeID, string(tagsJSON),
+			string(customFieldsJSON), ticket.DueDate, ticket.SLADeadline, ticket.ResolvedAt,
+			ticket.ClosedAt, sqlmock.AnyArg(),
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -153,8 +156,8 @@ func TestTicketRepository_Delete(t *testing.T) {
 
 	ticketID := "ticket-1"
 
-	mock.ExpectExec(`UPDATE tickets SET deleted_at`).
-		WithArgs(sqlmock.AnyArg(), ticketID).
+	mock.ExpectExec(`DELETE FROM tickets WHERE id`).
+		WithArgs(ticketID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = repo.Delete(context.Background(), ticketID)
@@ -192,11 +195,11 @@ func TestTicketRepository_List(t *testing.T) {
 	mock.ExpectQuery(`SELECT (.+) FROM tickets`).
 		WithArgs(models.TicketStatusOpen, 10, 0).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "title", "description", "status", "priority", "category", "type", "source",
+			"id", "number", "title", "description", "status", "priority", "category", "type", "source",
 			"reporter_id", "assignee_id", "tags", "custom_fields", "due_date", "sla_deadline",
 			"resolved_at", "closed_at", "created_at", "updated_at",
 		}).AddRow(
-			"ticket-1", "Test Ticket", "Test Description", models.TicketStatusOpen, models.TicketPriorityMedium,
+			"ticket-1", "T-001", "Test Ticket", "Test Description", models.TicketStatusOpen, models.TicketPriorityMedium,
 			nil, models.TicketTypeIncident, models.TicketSourceManual, "user-1", "user-2",
 			string(tagsJSON), string(customFieldsJSON), nil, nil,
 			nil, nil, time.Now(), time.Now(),

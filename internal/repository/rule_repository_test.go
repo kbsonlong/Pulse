@@ -50,9 +50,14 @@ func TestRuleRepository_Create(t *testing.T) {
 
 	// Mock INSERT query
 	mock.ExpectExec(`INSERT INTO rules`).WithArgs(
-		sqlmock.AnyArg(), rule.Name, rule.Description, rule.Type,
-		rule.Severity, rule.Status, rule.Expression, rule.EvaluationInterval,
+		sqlmock.AnyArg(), rule.Name, rule.Description, rule.Type, rule.Severity,
+		rule.Status, sqlmock.AnyArg(), rule.Expression, // enabled is set automatically
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // conditions, actions JSON
 		sqlmock.AnyArg(), sqlmock.AnyArg(), // labels, annotations JSON
+		sqlmock.AnyArg(), // data_source_id
+		rule.EvaluationInterval, sqlmock.AnyArg(), sqlmock.AnyArg(), // for_duration, keep_firing_for
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // threshold, recovery_threshold
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // no_data_state, exec_err_state
 		rule.CreatedBy, sqlmock.AnyArg(), sqlmock.AnyArg(), // created_at, updated_at
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -128,10 +133,15 @@ func TestRuleRepository_Update(t *testing.T) {
 	}
 
 	mock.ExpectExec(`UPDATE rules SET`).WithArgs(
-		rule.Name, rule.Description, rule.Type, rule.Severity,
-		rule.Status, rule.Expression, rule.EvaluationInterval,
+		rule.ID, rule.Name, rule.Description, rule.Type, rule.Severity,
+		rule.Status, sqlmock.AnyArg(), rule.Expression, // enabled
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // conditions, actions JSON
 		sqlmock.AnyArg(), sqlmock.AnyArg(), // labels, annotations JSON
-		sqlmock.AnyArg(), rule.ID, // updated_at, id
+		sqlmock.AnyArg(), // data_source_id
+		rule.EvaluationInterval, sqlmock.AnyArg(), sqlmock.AnyArg(), // for_duration, keep_firing_for
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // threshold, recovery_threshold
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // no_data_state, exec_err_state
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // updated_by, updated_at
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err := repo.Update(context.Background(), rule)
@@ -145,7 +155,7 @@ func TestRuleRepository_Delete(t *testing.T) {
 
 	ruleID := uuid.New().String()
 
-	mock.ExpectExec(`DELETE FROM rules WHERE id = \$1`).WithArgs(ruleID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`UPDATE rules SET deleted_at = NOW\(\) WHERE id = \$1 AND deleted_at IS NULL`).WithArgs(ruleID).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err := repo.Delete(context.Background(), ruleID)
 	assert.NoError(t, err)
@@ -243,8 +253,8 @@ func TestRuleRepository_Exists(t *testing.T) {
 
 	ruleID := uuid.New().String()
 
-	mock.ExpectQuery(`SELECT EXISTS\(SELECT 1 FROM rules WHERE id = \$1 AND deleted_at IS NULL\)`).WithArgs(ruleID).WillReturnRows(
-		sqlmock.NewRows([]string{"exists"}).AddRow(true),
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM rules WHERE id = \$1 AND deleted_at IS NULL`).WithArgs(ruleID).WillReturnRows(
+		sqlmock.NewRows([]string{"count"}).AddRow(1),
 	)
 
 	exists, err := repo.Exists(context.Background(), ruleID)
@@ -259,7 +269,7 @@ func TestRuleRepository_Activate(t *testing.T) {
 
 	ruleID := uuid.New().String()
 
-	mock.ExpectExec(`UPDATE rules SET status = \$1, updated_at = \$2 WHERE id = \$3 AND deleted_at IS NULL`).WithArgs(
+	mock.ExpectExec(`UPDATE rules SET status = \$1, enabled = true, updated_at = \$2 WHERE id = \$3 AND deleted_at IS NULL`).WithArgs(
 		models.RuleStatusActive, sqlmock.AnyArg(), ruleID,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -349,7 +359,7 @@ func TestRuleRepository_BatchDeactivate(t *testing.T) {
 
 	mock.ExpectBegin()
 	for _, id := range ruleIDs {
-		mock.ExpectExec(`UPDATE rules SET status = \$1, updated_at = \$2 WHERE id = \$3 AND deleted_at IS NULL`).WithArgs(
+		mock.ExpectExec(`UPDATE rules SET status = \$1, enabled = false, updated_at = \$2 WHERE id = \$3 AND deleted_at IS NULL`).WithArgs(
 			models.RuleStatusInactive, sqlmock.AnyArg(), id,
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 	}
