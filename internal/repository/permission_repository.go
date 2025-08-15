@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -193,16 +194,16 @@ func (r *permissionRepository) CreatePermissionGroup(ctx context.Context, group 
 // GetPermissionGroup 获取权限组
 func (r *permissionRepository) GetPermissionGroup(ctx context.Context, id string) (*models.PermissionGroup, error) {
 	var group models.PermissionGroup
-	var permissions pq.StringArray
+	var permissionsJSON string
 
 	query := `
-		SELECT id, name, description, permissions, created_at, updated_at, deleted_at
+		SELECT id, name, description, permissions, created_at, updated_at
 		FROM permission_groups 
 		WHERE id = $1 AND deleted_at IS NULL`
 
 	err := r.getExecutor().QueryRowxContext(ctx, query, id).Scan(
-		&group.ID, &group.Name, &group.Description, &permissions,
-		&group.CreatedAt, &group.UpdatedAt, &group.DeletedAt,
+		&group.ID, &group.Name, &group.Description, &permissionsJSON,
+		&group.CreatedAt, &group.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -211,9 +212,15 @@ func (r *permissionRepository) GetPermissionGroup(ctx context.Context, id string
 		return nil, fmt.Errorf("获取权限组失败: %w", err)
 	}
 
+	// 解析JSON格式的权限
+	var permissionStrings []string
+	if err := json.Unmarshal([]byte(permissionsJSON), &permissionStrings); err != nil {
+		return nil, fmt.Errorf("解析权限数据失败: %w", err)
+	}
+
 	// 转换权限
-	group.Permissions = make([]models.Permission, len(permissions))
-	for i, perm := range permissions {
+	group.Permissions = make([]models.Permission, len(permissionStrings))
+	for i, perm := range permissionStrings {
 		group.Permissions[i] = models.Permission(perm)
 	}
 
@@ -303,19 +310,25 @@ func (r *permissionRepository) ListPermissionGroups(ctx context.Context) ([]*mod
 	var groups []*models.PermissionGroup
 	for rows.Next() {
 		var group models.PermissionGroup
-		var permissions pq.StringArray
+		var permissionsJSON string
 
 		err := rows.Scan(
-			&group.ID, &group.Name, &group.Description, &permissions,
+			&group.ID, &group.Name, &group.Description, &permissionsJSON,
 			&group.CreatedAt, &group.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("扫描权限组数据失败: %w", err)
 		}
 
+		// 解析JSON权限
+		var permissionStrings []string
+		if err := json.Unmarshal([]byte(permissionsJSON), &permissionStrings); err != nil {
+			return nil, fmt.Errorf("解析权限JSON失败: %w", err)
+		}
+
 		// 转换权限
-		group.Permissions = make([]models.Permission, len(permissions))
-		for i, perm := range permissions {
+		group.Permissions = make([]models.Permission, len(permissionStrings))
+		for i, perm := range permissionStrings {
 			group.Permissions[i] = models.Permission(perm)
 		}
 
@@ -371,14 +384,14 @@ func (r *permissionRepository) GetPermissionOverride(ctx context.Context, id str
 	var permission string
 
 	query := `
-		SELECT id, user_id, permission, granted, granted_by, reason, expires_at, created_at, updated_at, deleted_at
+		SELECT id, user_id, permission, granted, granted_by, reason, expires_at, created_at, updated_at
 		FROM user_permission_overrides 
 		WHERE id = $1 AND deleted_at IS NULL`
 
 	err := r.getExecutor().QueryRowxContext(ctx, query, id).Scan(
 		&override.ID, &override.UserID, &permission, &override.Granted,
 		&override.GrantedBy, &override.Reason, &override.ExpiresAt,
-		&override.CreatedAt, &override.UpdatedAt, &override.DeletedAt,
+		&override.CreatedAt, &override.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -557,15 +570,9 @@ func (r *permissionRepository) RevokePermission(ctx context.Context, userID stri
 // CleanupExpiredOverrides 清理过期的权限覆盖
 func (r *permissionRepository) CleanupExpiredOverrides(ctx context.Context) (int64, error) {
 	now := time.Now()
-	query := `
-		UPDATE user_permission_overrides SET 
-			deleted_at = $1,
-			updated_at = $1
-		WHERE expires_at IS NOT NULL 
-		  AND expires_at < $1 
-		  AND deleted_at IS NULL`
+	query := `DELETE FROM user_permission_overrides WHERE expires_at IS NOT NULL AND expires_at < $1`
 
-	result, err := r.db.ExecContext(ctx, query, now)
+	result, err := r.getExecutor().ExecContext(ctx, query, now)
 	if err != nil {
 		return 0, fmt.Errorf("清理过期权限覆盖失败: %w", err)
 	}
@@ -583,17 +590,13 @@ func (r *permissionRepository) getActivePermissionOverride(ctx context.Context, 
 	var override models.UserPermissionOverride
 	var permissionStr string
 
+	now := time.Now()
 	query := `
 		SELECT id, user_id, permission, granted, granted_by, reason, expires_at, created_at, updated_at
 		FROM user_permission_overrides 
-		WHERE user_id = $1 
-		  AND permission = $2 
-		  AND deleted_at IS NULL
-		  AND (expires_at IS NULL OR expires_at > $3)
-		ORDER BY created_at DESC
-		LIMIT 1`
+		WHERE user_id = $1 AND permission = $2 AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > $3)`
 
-	err := r.getExecutor().QueryRowxContext(ctx, query, userID, string(permission), time.Now()).Scan(
+	err := r.getExecutor().QueryRowxContext(ctx, query, userID, string(permission), now).Scan(
 		&override.ID, &override.UserID, &permissionStr, &override.Granted,
 		&override.GrantedBy, &override.Reason, &override.ExpiresAt,
 		&override.CreatedAt, &override.UpdatedAt,

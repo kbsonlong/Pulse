@@ -199,10 +199,10 @@ func (r *userRepository) SoftDelete(ctx context.Context, id string) error {
 	query := `
 		UPDATE users SET 
 			deleted_at = $1,
-			updated_at = $1
-		WHERE id = $2 AND deleted_at IS NULL`
+			updated_at = $2
+		WHERE id = $3 AND deleted_at IS NULL`
 
-	result, err := r.getExecutor().ExecContext(ctx, query, now, id)
+	result, err := r.getExecutor().ExecContext(ctx, query, now, now, id)
 	if err != nil {
 		return fmt.Errorf("软删除用户失败: %w", err)
 	}

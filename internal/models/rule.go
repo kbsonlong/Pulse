@@ -246,6 +246,11 @@ func (r *Rule) Validate() error {
 		return errors.New("创建者不能为空")
 	}
 	
+	// 验证时间逻辑
+	if r.LastEvalAt != nil && r.LastEvalAt.After(time.Now()) {
+		return errors.New("最后评估时间不能晚于当前时间")
+	}
+	
 	// 验证条件
 	for i, condition := range r.Conditions {
 		if err := condition.Validate(); err != nil {

@@ -205,12 +205,22 @@ func (a *Alert) Validate() error {
 		return errors.New("数据源ID不能为空")
 	}
 	
+	// 验证RuleID关联（如果存在）
+	if a.RuleID != nil && strings.TrimSpace(*a.RuleID) == "" {
+		return errors.New("规则ID不能为空字符串")
+	}
+	
 	if strings.TrimSpace(a.Expression) == "" {
 		return errors.New("告警表达式不能为空")
 	}
 	
 	if strings.TrimSpace(a.Fingerprint) == "" {
 		return errors.New("告警指纹不能为空")
+	}
+	
+	// 验证时间逻辑
+	if a.EndsAt != nil && a.EndsAt.Before(a.StartsAt) {
+		return errors.New("告警结束时间不能早于开始时间")
 	}
 	
 	return nil

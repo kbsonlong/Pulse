@@ -41,8 +41,8 @@ func TestUserRepository_Create(t *testing.T) {
 		DisplayName:  "Test User",
 		Role:         models.UserRoleOperator,
 		Status:       models.UserStatusActive,
-		Phone:        "1234567890",
-		Department:   "IT",
+		Phone:        stringPtr("1234567890"),
+		Department:   stringPtr("IT"),
 	}
 
 	mock.ExpectExec(`INSERT INTO users`).WithArgs(
@@ -377,5 +377,4 @@ func TestUserRepository_BatchCreate(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// Helper function for null values in tests
-var null interface{} = nil
+// Helper functions are now in test_helpers.go

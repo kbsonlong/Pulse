@@ -229,6 +229,11 @@ func (ds *DataSource) Validate() error {
 		return errors.New("创建者不能为空")
 	}
 	
+	// 验证时间逻辑
+	if ds.LastHealthCheck != nil && ds.LastHealthCheck.After(time.Now()) {
+		return errors.New("最后健康检查时间不能晚于当前时间")
+	}
+	
 	return nil
 }
 

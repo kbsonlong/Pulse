@@ -43,7 +43,7 @@ func TestAuthRepository_CreateSession(t *testing.T) {
 
 	mock.ExpectExec(`INSERT INTO user_sessions`).WithArgs(
 		session.ID, session.UserID, session.SessionToken, session.UserAgent,
-		session.IPAddress, session.ExpiresAt, sqlmock.AnyArg(), sqlmock.AnyArg(),
+		session.IPAddress, sqlmock.AnyArg(), session.ExpiresAt, sqlmock.AnyArg(), sqlmock.AnyArg(),
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err := repo.CreateSession(context.Background(), session)
@@ -66,10 +66,10 @@ func TestAuthRepository_GetSession(t *testing.T) {
 	}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "user_id", "token", "user_agent", "ip_address", "expires_at", "created_at", "updated_at",
+		"id", "user_id", "session_token", "user_agent", "ip_address", "last_activity", "expires_at", "created_at", "updated_at",
 	}).AddRow(
 		expectedSession.ID, expectedSession.UserID, expectedSession.SessionToken,
-		expectedSession.UserAgent, expectedSession.IPAddress, expectedSession.ExpiresAt,
+		expectedSession.UserAgent, expectedSession.IPAddress, time.Now(), expectedSession.ExpiresAt,
 		time.Now(), time.Now(),
 	)
 
@@ -88,49 +88,42 @@ func TestAuthRepository_GetSessionByToken(t *testing.T) {
 
 	token := "session_token_123"
 	expectedSession := &models.UserSession{
-		ID:        uuid.New().String(),
-		UserID:    uuid.New().String(),
-		Token:     token,
-		UserAgent: "Mozilla/5.0",
-		IPAddress: "192.168.1.1",
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+		ID:           uuid.New().String(),
+		UserID:       uuid.New().String(),
+		SessionToken: token,
+		UserAgent:    "Mozilla/5.0",
+		IPAddress:    "192.168.1.1",
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
 	}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "user_id", "token", "user_agent", "ip_address", "expires_at", "created_at", "updated_at",
+		"id", "user_id", "session_token", "user_agent", "ip_address", "last_activity", "expires_at", "created_at", "updated_at",
 	}).AddRow(
-		expectedSession.ID, expectedSession.UserID, expectedSession.Token,
-		expectedSession.UserAgent, expectedSession.IPAddress, expectedSession.ExpiresAt,
+		expectedSession.ID, expectedSession.UserID, expectedSession.SessionToken,
+		expectedSession.UserAgent, expectedSession.IPAddress, time.Now(), expectedSession.ExpiresAt,
 		time.Now(), time.Now(),
 	)
 
-	mock.ExpectQuery(`SELECT .+ FROM user_sessions WHERE token = \$1`).WithArgs(token).WillReturnRows(rows)
+	mock.ExpectQuery(`SELECT .+ FROM user_sessions WHERE session_token = \$1`).WithArgs(token).WillReturnRows(rows)
 
 	session, err := repo.GetSessionByToken(context.Background(), token)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedSession.Token, session.Token)
+	assert.Equal(t, expectedSession.SessionToken, session.SessionToken)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAuthRepository_UpdateSession(t *testing.T) {
+func TestAuthRepository_UpdateSessionLastActivity(t *testing.T) {
 	repo, mock, cleanup := setupAuthRepositoryTest(t)
 	defer cleanup()
 
-	session := &models.UserSession{
-		ID:        uuid.New().String(),
-		UserID:    uuid.New().String(),
-		Token:     "updated_token_123",
-		UserAgent: "Mozilla/5.0 Updated",
-		IPAddress: "192.168.1.2",
-		ExpiresAt: time.Now().Add(48 * time.Hour),
-	}
+	sessionID := uuid.New().String()
+	lastActivity := time.Now()
 
 	mock.ExpectExec(`UPDATE user_sessions SET`).WithArgs(
-		session.UserID, session.Token, session.UserAgent, session.IPAddress,
-		session.ExpiresAt, sqlmock.AnyArg(), session.ID,
+		lastActivity, sqlmock.AnyArg(), sessionID,
 	).WillReturnResult(sqlmock.NewResult(0, 1))
 
-	err := repo.UpdateSession(context.Background(), session)
+	err := repo.UpdateSessionLastActivity(context.Background(), sessionID, lastActivity)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -188,7 +181,7 @@ func TestAuthRepository_CreateRefreshToken(t *testing.T) {
 
 	mock.ExpectExec(`INSERT INTO refresh_tokens`).WithArgs(
 		refreshToken.ID, refreshToken.UserID, refreshToken.Token,
-		refreshToken.ExpiresAt, false, sqlmock.AnyArg(), sqlmock.AnyArg(),
+		refreshToken.ExpiresAt, refreshToken.RevokedAt, sqlmock.AnyArg(), sqlmock.AnyArg(),
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err := repo.CreateRefreshToken(context.Background(), refreshToken)
@@ -206,14 +199,14 @@ func TestAuthRepository_GetRefreshToken(t *testing.T) {
 		UserID:    uuid.New().String(),
 		Token:     token,
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-		Revoked:   false,
+		RevokedAt: nil,
 	}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "user_id", "token", "expires_at", "revoked", "created_at", "updated_at",
+		"id", "user_id", "token", "expires_at", "revoked_at", "created_at", "updated_at",
 	}).AddRow(
 		expectedToken.ID, expectedToken.UserID, expectedToken.Token,
-		expectedToken.ExpiresAt, expectedToken.Revoked, time.Now(), time.Now(),
+		expectedToken.ExpiresAt, expectedToken.RevokedAt, time.Now(), time.Now(),
 	)
 
 	mock.ExpectQuery(`SELECT .+ FROM refresh_tokens WHERE token = \$1`).WithArgs(token).WillReturnRows(rows)
@@ -221,7 +214,7 @@ func TestAuthRepository_GetRefreshToken(t *testing.T) {
 	refreshToken, err := repo.GetRefreshToken(context.Background(), token)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedToken.Token, refreshToken.Token)
-	assert.False(t, refreshToken.Revoked)
+	assert.False(t, refreshToken.IsRevoked())
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -231,8 +224,8 @@ func TestAuthRepository_RevokeRefreshToken(t *testing.T) {
 
 	token := "refresh_token_123"
 
-	mock.ExpectExec(`UPDATE refresh_tokens SET revoked = true, updated_at = \$1 WHERE token = \$2`).WithArgs(
-		sqlmock.AnyArg(), token,
+	mock.ExpectExec(`UPDATE refresh_tokens SET revoked_at = \$1, updated_at = \$2 WHERE token = \$3`).WithArgs(
+		sqlmock.AnyArg(), sqlmock.AnyArg(), token,
 	).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.RevokeRefreshToken(context.Background(), token)
@@ -246,8 +239,8 @@ func TestAuthRepository_RevokeUserRefreshTokens(t *testing.T) {
 
 	userID := uuid.New().String()
 
-	mock.ExpectExec(`UPDATE refresh_tokens SET revoked = true, updated_at = \$1 WHERE user_id = \$2`).WithArgs(
-		sqlmock.AnyArg(), userID,
+	mock.ExpectExec(`UPDATE refresh_tokens SET revoked_at = \$1, updated_at = \$2 WHERE user_id = \$3`).WithArgs(
+		sqlmock.AnyArg(), sqlmock.AnyArg(), userID,
 	).WillReturnResult(sqlmock.NewResult(0, 2))
 
 	err := repo.RevokeUserRefreshTokens(context.Background(), userID)
@@ -274,17 +267,16 @@ func TestAuthRepository_CreateLoginAttempt(t *testing.T) {
 	defer cleanup()
 
 	attempt := &models.LoginAttempt{
-		ID:        uuid.New().String(),
-		Username:  "testuser",
-		IPAddress: "192.168.1.1",
-		UserAgent: "Mozilla/5.0",
-		Success:   true,
-		UserID:    func() *string { s := uuid.New().String(); return &s }(),
+		ID:         uuid.New().String(),
+		Identifier: "test@example.com",
+		IPAddress:  "192.168.1.1",
+		UserAgent:  "Mozilla/5.0",
+		Success:    true,
 	}
 
 	mock.ExpectExec(`INSERT INTO login_attempts`).WithArgs(
-		attempt.ID, attempt.Username, attempt.IPAddress, attempt.UserAgent,
-		attempt.Success, attempt.UserID, attempt.FailureReason, sqlmock.AnyArg(),
+		attempt.ID, attempt.Identifier, attempt.IPAddress, attempt.UserAgent,
+		attempt.Success, attempt.FailReason, sqlmock.AnyArg(),
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err := repo.CreateLoginAttempt(context.Background(), attempt)
@@ -296,57 +288,38 @@ func TestAuthRepository_GetLoginAttempts(t *testing.T) {
 	repo, mock, cleanup := setupAuthRepositoryTest(t)
 	defer cleanup()
 
-	username := "testuser"
-	limit := 10
+	identifier := "test@example.com"
+	since := time.Now().Add(-24 * time.Hour)
+	failReason := "invalid password"
 
-	rows := sqlmock.NewRows([]string{
-		"id", "username", "ip_address", "user_agent", "success", "user_id", "failure_reason", "created_at",
-	}).AddRow(
-		uuid.New().String(), username, "192.168.1.1", "Mozilla/5.0",
-		true, uuid.New().String(), null, time.Now(),
-	).AddRow(
-		uuid.New().String(), username, "192.168.1.2", "Chrome/90.0",
-		false, null, "Invalid password", time.Now(),
-	)
+	rows := sqlmock.NewRows([]string{"id", "identifier", "ip_address", "user_agent", "success", "fail_reason", "created_at"}).
+		AddRow(uuid.New().String(), identifier, "192.168.1.1", "Mozilla/5.0", true, nil, time.Now()).
+		AddRow(uuid.New().String(), identifier, "192.168.1.1", "Mozilla/5.0", false, &failReason, time.Now())
 
-	mock.ExpectQuery(`SELECT .+ FROM login_attempts WHERE username = \$1 ORDER BY created_at DESC LIMIT \$2`).WithArgs(
-		username, limit,
-	).WillReturnRows(rows)
+	mock.ExpectQuery(`SELECT (.+) FROM login_attempts`).WithArgs(identifier, since).WillReturnRows(rows)
 
-	attempts, err := repo.GetLoginAttempts(context.Background(), username, limit)
+	attempts, err := repo.GetLoginAttempts(context.Background(), identifier, since)
 	assert.NoError(t, err)
 	assert.Len(t, attempts, 2)
-	assert.True(t, attempts[0].Success)
-	assert.False(t, attempts[1].Success)
+	assert.Equal(t, identifier, attempts[0].Identifier)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAuthRepository_GetRecentFailedAttempts(t *testing.T) {
+func TestAuthRepository_GetFailedLoginAttempts(t *testing.T) {
 	repo, mock, cleanup := setupAuthRepositoryTest(t)
 	defer cleanup()
 
-	username := "testuser"
+	identifier := "test@example.com"
 	since := time.Now().Add(-1 * time.Hour)
 
-	rows := sqlmock.NewRows([]string{
-		"id", "username", "ip_address", "user_agent", "success", "user_id", "failure_reason", "created_at",
-	}).AddRow(
-		uuid.New().String(), username, "192.168.1.1", "Mozilla/5.0",
-		false, null, "Invalid password", time.Now(),
-	).AddRow(
-		uuid.New().String(), username, "192.168.1.2", "Chrome/90.0",
-		false, null, "Account locked", time.Now(),
-	)
+	rows := sqlmock.NewRows([]string{"count"}).
+		AddRow(3)
 
-	mock.ExpectQuery(`SELECT .+ FROM login_attempts WHERE username = \$1 AND success = false AND created_at > \$2 ORDER BY created_at DESC`).WithArgs(
-		username, since,
-	).WillReturnRows(rows)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM login_attempts`).WithArgs(identifier, since).WillReturnRows(rows)
 
-	attempts, err := repo.GetRecentFailedAttempts(context.Background(), username, since)
+	count, err := repo.GetFailedLoginAttempts(context.Background(), identifier, since)
 	assert.NoError(t, err)
-	assert.Len(t, attempts, 2)
-	assert.False(t, attempts[0].Success)
-	assert.False(t, attempts[1].Success)
+	assert.Equal(t, 3, count)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

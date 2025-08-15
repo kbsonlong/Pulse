@@ -375,6 +375,41 @@ func (t *Ticket) Validate() error {
 		return errors.New("报告人不能为空")
 	}
 	
+	// 验证关联字段
+	if t.AlertID != nil && strings.TrimSpace(*t.AlertID) == "" {
+		return errors.New("告警ID不能为空字符串")
+	}
+	
+	if t.RuleID != nil && strings.TrimSpace(*t.RuleID) == "" {
+		return errors.New("规则ID不能为空字符串")
+	}
+	
+	if t.DataSourceID != nil && strings.TrimSpace(*t.DataSourceID) == "" {
+		return errors.New("数据源ID不能为空字符串")
+	}
+	
+	if t.AssigneeID != nil && strings.TrimSpace(*t.AssigneeID) == "" {
+		return errors.New("分配人ID不能为空字符串")
+	}
+	
+	if t.TeamID != nil && strings.TrimSpace(*t.TeamID) == "" {
+		return errors.New("团队ID不能为空字符串")
+	}
+	
+	// 验证时间逻辑
+	if t.DueDate != nil && t.DueDate.Before(time.Now()) {
+		return errors.New("截止时间不能早于当前时间")
+	}
+	
+	if t.ResolvedAt != nil && t.ClosedAt != nil && t.ClosedAt.Before(*t.ResolvedAt) {
+		return errors.New("关闭时间不能早于解决时间")
+	}
+	
+	// 验证工单来源与关联字段的一致性
+	if t.Source == TicketSourceAlert && t.AlertID == nil {
+		return errors.New("告警来源的工单必须关联告警ID")
+	}
+	
 	return nil
 }
 

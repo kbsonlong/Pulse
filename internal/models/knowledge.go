@@ -334,6 +334,37 @@ func (k *Knowledge) Validate() error {
 		return errors.New("作者不能为空")
 	}
 	
+	// 验证关联字段
+	if k.CategoryID != nil && strings.TrimSpace(*k.CategoryID) == "" {
+		return errors.New("分类ID不能为空字符串")
+	}
+	
+	if k.TeamID != nil && strings.TrimSpace(*k.TeamID) == "" {
+		return errors.New("团队ID不能为空字符串")
+	}
+	
+	if k.ReviewerID != nil && strings.TrimSpace(*k.ReviewerID) == "" {
+		return errors.New("审核人ID不能为空字符串")
+	}
+	
+	// 验证时间逻辑
+	if k.ExpiresAt != nil && k.ExpiresAt.Before(time.Now()) {
+		return errors.New("过期时间不能早于当前时间")
+	}
+	
+	if k.PublishedAt != nil && k.PublishedAt.After(time.Now()) {
+		return errors.New("发布时间不能晚于当前时间")
+	}
+	
+	// 验证状态与时间的一致性
+	if k.Status == KnowledgeStatusPublished && k.PublishedAt == nil {
+		return errors.New("已发布的知识必须有发布时间")
+	}
+	
+	if k.Status == KnowledgeStatusReview && k.ReviewerID == nil {
+		return errors.New("审核中的知识必须指定审核人")
+	}
+	
 	if strings.TrimSpace(k.Language) == "" {
 		k.Language = "zh-CN" // 默认中文
 	}

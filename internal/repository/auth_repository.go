@@ -17,6 +17,7 @@ type AuthRepository interface {
 	// 会话管理
 	CreateSession(ctx context.Context, session *models.UserSession) error
 	GetSession(ctx context.Context, sessionID string) (*models.UserSession, error)
+	GetSessionByToken(ctx context.Context, sessionToken string) (*models.UserSession, error)
 	GetUserSessions(ctx context.Context, userID string) ([]*models.UserSession, error)
 	UpdateSessionLastActivity(ctx context.Context, sessionID string, lastActivity time.Time) error
 	DeleteSession(ctx context.Context, sessionID string) error
@@ -25,9 +26,10 @@ type AuthRepository interface {
 
 	// 刷新令牌管理
 	CreateRefreshToken(ctx context.Context, token *models.RefreshToken) error
-	GetRefreshToken(ctx context.Context, tokenID string) (*models.RefreshToken, error)
+	GetRefreshToken(ctx context.Context, token string) (*models.RefreshToken, error)
+	GetRefreshTokenByID(ctx context.Context, tokenID string) (*models.RefreshToken, error)
 	GetUserRefreshTokens(ctx context.Context, userID string) ([]*models.RefreshToken, error)
-	RevokeRefreshToken(ctx context.Context, tokenID string) error
+	RevokeRefreshToken(ctx context.Context, token string) error
 	RevokeUserRefreshTokens(ctx context.Context, userID string) error
 	CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)
 
@@ -81,15 +83,15 @@ func (r *authRepository) CreateSession(ctx context.Context, session *models.User
 
 	query := `
 		INSERT INTO user_sessions (
-			id, user_id, session_token, ip_address, user_agent, 
+			id, user_id, session_token, user_agent, ip_address, 
 			last_activity, expires_at, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9
 		)`
 
 	_, err := r.getExecutor().ExecContext(ctx, query,
-		session.ID, session.UserID, session.SessionToken, session.IPAddress,
-		session.UserAgent, session.LastActivity, session.ExpiresAt,
+		session.ID, session.UserID, session.SessionToken, session.UserAgent,
+		session.IPAddress, session.LastActivity, session.ExpiresAt,
 		session.CreatedAt, session.UpdatedAt,
 	)
 	if err != nil {
@@ -109,6 +111,26 @@ func (r *authRepository) GetSession(ctx context.Context, sessionID string) (*mod
 		WHERE id = $1`
 
 	err := sqlx.GetContext(ctx, r.getExecutor(), &session, query, sessionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("会话不存在")
+		}
+		return nil, fmt.Errorf("获取用户会话失败: %w", err)
+	}
+
+	return &session, nil
+}
+
+// GetSessionByToken 通过会话令牌获取用户会话
+func (r *authRepository) GetSessionByToken(ctx context.Context, sessionToken string) (*models.UserSession, error) {
+	var session models.UserSession
+	query := `
+		SELECT id, user_id, session_token, ip_address, user_agent,
+		       last_activity, expires_at, created_at, updated_at
+		FROM user_sessions 
+		WHERE session_token = $1`
+
+	err := sqlx.GetContext(ctx, r.getExecutor(), &session, query, sessionToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("会话不存在")
@@ -243,14 +265,14 @@ func (r *authRepository) CreateRefreshToken(ctx context.Context, token *models.R
 
 	query := `
 		INSERT INTO refresh_tokens (
-			id, user_id, token, expires_at, created_at, updated_at
+			id, user_id, token, expires_at, revoked_at, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6
+			$1, $2, $3, $4, $5, $6, $7
 		)`
 
 	_, err := r.getExecutor().ExecContext(ctx, query,
 		token.ID, token.UserID, token.Token, token.ExpiresAt,
-		token.CreatedAt, token.UpdatedAt,
+		token.RevokedAt, token.CreatedAt, token.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("创建刷新令牌失败: %w", err)
@@ -259,8 +281,27 @@ func (r *authRepository) CreateRefreshToken(ctx context.Context, token *models.R
 	return nil
 }
 
-// GetRefreshToken 获取刷新令牌
-func (r *authRepository) GetRefreshToken(ctx context.Context, tokenID string) (*models.RefreshToken, error) {
+// GetRefreshToken 通过token字符串获取刷新令牌
+func (r *authRepository) GetRefreshToken(ctx context.Context, tokenStr string) (*models.RefreshToken, error) {
+	var token models.RefreshToken
+	query := `
+		SELECT id, user_id, token, expires_at, revoked_at, created_at, updated_at
+		FROM refresh_tokens 
+		WHERE token = $1`
+
+	err := sqlx.GetContext(ctx, r.getExecutor(), &token, query, tokenStr)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("刷新令牌不存在")
+		}
+		return nil, fmt.Errorf("获取刷新令牌失败: %w", err)
+	}
+
+	return &token, nil
+}
+
+// GetRefreshTokenByID 通过ID获取刷新令牌
+func (r *authRepository) GetRefreshTokenByID(ctx context.Context, tokenID string) (*models.RefreshToken, error) {
 	var token models.RefreshToken
 	query := `
 		SELECT id, user_id, token, expires_at, revoked_at, created_at, updated_at
@@ -312,16 +353,16 @@ func (r *authRepository) GetUserRefreshTokens(ctx context.Context, userID string
 	return tokens, nil
 }
 
-// RevokeRefreshToken 撤销刷新令牌
-func (r *authRepository) RevokeRefreshToken(ctx context.Context, tokenID string) error {
+// RevokeRefreshToken 通过token字符串撤销刷新令牌
+func (r *authRepository) RevokeRefreshToken(ctx context.Context, tokenStr string) error {
 	now := time.Now()
 	query := `
 		UPDATE refresh_tokens SET 
 			revoked_at = $1,
-			updated_at = $1
-		WHERE id = $2 AND revoked_at IS NULL`
+			updated_at = $2
+		WHERE token = $3 AND revoked_at IS NULL`
 
-	result, err := r.getExecutor().ExecContext(ctx, query, now, tokenID)
+	result, err := r.getExecutor().ExecContext(ctx, query, now, now, tokenStr)
 	if err != nil {
 		return fmt.Errorf("撤销刷新令牌失败: %w", err)
 	}
@@ -344,10 +385,10 @@ func (r *authRepository) RevokeUserRefreshTokens(ctx context.Context, userID str
 	query := `
 		UPDATE refresh_tokens SET 
 			revoked_at = $1,
-			updated_at = $1
-		WHERE user_id = $2 AND revoked_at IS NULL`
+			updated_at = $2
+		WHERE user_id = $3 AND revoked_at IS NULL`
 
-	_, err := r.getExecutor().ExecContext(ctx, query, now, userID)
+	_, err := r.getExecutor().ExecContext(ctx, query, now, now, userID)
 	if err != nil {
 		return fmt.Errorf("撤销用户刷新令牌失败: %w", err)
 	}

@@ -37,7 +37,7 @@ type LoginAttempt struct {
 	IPAddress  string    `json:"ip_address" db:"ip_address"`
 	UserAgent  string    `json:"user_agent" db:"user_agent"`
 	Success    bool      `json:"success" db:"success"`
-	FailReason string    `json:"fail_reason" db:"fail_reason"`
+	FailReason *string   `json:"fail_reason" db:"fail_reason"`
 	CreatedAt  time.Time `json:"created_at" db:"created_at"`
 }
 
@@ -146,7 +146,7 @@ func (l *LoginAttempt) Validate() error {
 	if strings.TrimSpace(l.IPAddress) == "" {
 		return fmt.Errorf("IP地址不能为空")
 	}
-	if !l.Success && strings.TrimSpace(l.FailReason) == "" {
+	if !l.Success && (l.FailReason == nil || strings.TrimSpace(*l.FailReason) == "") {
 		return fmt.Errorf("失败原因不能为空")
 	}
 	return nil

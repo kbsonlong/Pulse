@@ -155,7 +155,7 @@ func (r *knowledgeRepository) GetByID(ctx context.Context, id string) (*models.K
 		&article.ID, &article.Title, &article.Content, &article.Summary, &article.CategoryID,
 		&article.Status, &article.Type, &article.Language, &article.AuthorID, &article.ReviewerID,
 		&tagsJSON, &metadataJSON, &article.Version, &article.ViewCount, &article.LikeCount,
-		&article.IsFeatured, &article.Visibility, &article.PublishedAt, &article.CreatedAt, &article.UpdatedAt,
+		&article.IsFeatured, &article.Visibility, &article.CreatedAt, &article.UpdatedAt, &article.PublishedAt, &article.ReviewedAt,
 	)
 
 	if err != nil {
@@ -424,7 +424,7 @@ func (r *knowledgeRepository) List(ctx context.Context, filter *models.Knowledge
 	query := fmt.Sprintf(`
 		SELECT id, title, content, summary, category_id, status, type, language,
 		       author_id, reviewer_id, tags, metadata, version, view_count, like_count,
-		       is_featured, is_public, published_at, created_at, updated_at
+		       is_featured, visibility, published_at, created_at, updated_at
 		FROM knowledge_articles %s %s`, whereClause, orderBy)
 
 	// 添加分页
