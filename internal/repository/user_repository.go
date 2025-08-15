@@ -17,6 +17,7 @@ import (
 // userRepository 用户仓储实现
 type userRepository struct {
 	db *sqlx.DB
+	tx *sqlx.Tx
 }
 
 // NewUserRepository 创建用户仓储实例
@@ -24,6 +25,21 @@ func NewUserRepository(db *sqlx.DB) UserRepository {
 	return &userRepository{
 		db: db,
 	}
+}
+
+// NewUserRepositoryWithTx 创建带事务的用户仓储实例
+func NewUserRepositoryWithTx(tx *sqlx.Tx) UserRepository {
+	return &userRepository{
+		tx: tx,
+	}
+}
+
+// getExecutor 获取数据库执行器（事务或普通连接）
+func (r *userRepository) getExecutor() sqlx.ExtContext {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }
 
 // Create 创建用户
@@ -52,7 +68,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 			:phone, :avatar, :department, :created_at, :updated_at
 		)`
 
-	_, err := r.db.NamedExecContext(ctx, query, user)
+	_, err := sqlx.NamedExecContext(ctx, r.getExecutor(), query, user)
 	if err != nil {
 		return fmt.Errorf("创建用户失败: %w", err)
 	}
@@ -69,7 +85,7 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*models.User, 
 		FROM users 
 		WHERE id = $1 AND deleted_at IS NULL`
 
-	err := r.db.GetContext(ctx, &user, query, id)
+	err := sqlx.GetContext(ctx, r.getExecutor(), &user, query, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("用户不存在")
@@ -89,7 +105,7 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*m
 		FROM users 
 		WHERE username = $1 AND deleted_at IS NULL`
 
-	err := r.db.GetContext(ctx, &user, query, username)
+	err := sqlx.GetContext(ctx, r.getExecutor(), &user, query, username)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("用户不存在")
@@ -109,7 +125,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*models.
 		FROM users 
 		WHERE email = $1 AND deleted_at IS NULL`
 
-	err := r.db.GetContext(ctx, &user, query, email)
+	err := sqlx.GetContext(ctx, r.getExecutor(), &user, query, email)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("用户不存在")
@@ -139,7 +155,7 @@ func (r *userRepository) Update(ctx context.Context, user *models.User) error {
 			updated_at = :updated_at
 		WHERE id = :id AND deleted_at IS NULL`
 
-	result, err := r.db.NamedExecContext(ctx, query, user)
+	result, err := sqlx.NamedExecContext(ctx, r.getExecutor(), query, user)
 	if err != nil {
 		return fmt.Errorf("更新用户失败: %w", err)
 	}
@@ -160,7 +176,7 @@ func (r *userRepository) Update(ctx context.Context, user *models.User) error {
 func (r *userRepository) Delete(ctx context.Context, id string) error {
 	query := `DELETE FROM users WHERE id = $1`
 
-	result, err := r.db.ExecContext(ctx, query, id)
+	result, err := r.getExecutor().ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("删除用户失败: %w", err)
 	}
@@ -186,7 +202,7 @@ func (r *userRepository) SoftDelete(ctx context.Context, id string) error {
 			updated_at = $1
 		WHERE id = $2 AND deleted_at IS NULL`
 
-	result, err := r.db.ExecContext(ctx, query, now, id)
+	result, err := r.getExecutor().ExecContext(ctx, query, now, id)
 	if err != nil {
 		return fmt.Errorf("软删除用户失败: %w", err)
 	}

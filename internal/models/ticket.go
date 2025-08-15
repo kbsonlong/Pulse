@@ -68,26 +68,31 @@ const (
 
 // TicketComment 工单评论
 type TicketComment struct {
-	ID        string    `json:"id" db:"id"`
-	TicketID  string    `json:"ticket_id" db:"ticket_id"`
-	UserID    string    `json:"user_id" db:"user_id"`
-	UserName  string    `json:"user_name" db:"user_name"`
-	Content   string    `json:"content" db:"content"`
-	IsPrivate bool      `json:"is_private" db:"is_private"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+	ID         string    `json:"id" db:"id"`
+	TicketID   string    `json:"ticket_id" db:"ticket_id"`
+	UserID     string    `json:"user_id" db:"user_id"`
+	AuthorID   string    `json:"author_id" db:"author_id"`
+	UserName   string    `json:"user_name" db:"user_name"`
+	Content    string    `json:"content" db:"content"`
+	IsPrivate  bool      `json:"is_private" db:"is_private"`
+	IsInternal bool      `json:"is_internal" db:"is_internal"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // TicketAttachment 工单附件
 type TicketAttachment struct {
-	ID        string    `json:"id" db:"id"`
-	TicketID  string    `json:"ticket_id" db:"ticket_id"`
-	FileName  string    `json:"file_name" db:"file_name"`
-	FileSize  int64     `json:"file_size" db:"file_size"`
-	FileType  string    `json:"file_type" db:"file_type"`
-	FilePath  string    `json:"file_path" db:"file_path"`
-	UploadBy  string    `json:"upload_by" db:"upload_by"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	ID               string    `json:"id" db:"id"`
+	TicketID         string    `json:"ticket_id" db:"ticket_id"`
+	FileName         string    `json:"file_name" db:"file_name"`
+	Filename         string    `json:"filename" db:"filename"`
+	OriginalFilename string    `json:"original_filename" db:"original_filename"`
+	FileSize         int64     `json:"file_size" db:"file_size"`
+	FileType         string    `json:"file_type" db:"file_type"`
+	MimeType         string    `json:"mime_type" db:"mime_type"`
+	FilePath         string    `json:"file_path" db:"file_path"`
+	UploadBy         string    `json:"upload_by" db:"upload_by"`
+	CreatedAt        time.Time `json:"created_at" db:"created_at"`
 }
 
 // TicketHistory 工单历史记录
@@ -97,6 +102,7 @@ type TicketHistory struct {
 	UserID    string                 `json:"user_id" db:"user_id"`
 	UserName  string                 `json:"user_name" db:"user_name"`
 	Action    string                 `json:"action" db:"action"`
+	Field     *string                `json:"field,omitempty" db:"field"`
 	OldValue  *string                `json:"old_value,omitempty" db:"old_value"`
 	NewValue  *string                `json:"new_value,omitempty" db:"new_value"`
 	Changes   map[string]interface{} `json:"changes,omitempty" db:"changes"`
@@ -104,11 +110,43 @@ type TicketHistory struct {
 	CreatedAt time.Time              `json:"created_at" db:"created_at"`
 }
 
+// TicketSLAStatus SLA状态
+type TicketSLAStatus string
+
+const (
+	TicketSLAStatusOnTrack  TicketSLAStatus = "on_track"
+	TicketSLAStatusAtRisk   TicketSLAStatus = "at_risk"
+	TicketSLAStatusBreached TicketSLAStatus = "breached"
+)
+
+// TicketSLAStatusInfo SLA状态信息
+type TicketSLAStatusInfo struct {
+	TicketID      string        `json:"ticket_id"`
+	Status        string        `json:"status"`
+	Deadline      time.Time     `json:"deadline"`
+	TimeRemaining time.Duration `json:"time_remaining"`
+	IsBreached    bool          `json:"is_breached"`
+}
+
 // TicketSLA SLA配置
 type TicketSLA struct {
-	ResponseTime   *time.Duration `json:"response_time,omitempty"`   // 响应时间
-	ResolutionTime *time.Duration `json:"resolution_time,omitempty"` // 解决时间
-	EscalationTime *time.Duration `json:"escalation_time,omitempty"` // 升级时间
+	ID              string                 `json:"id" db:"id"`
+	Name            string                 `json:"name" db:"name"`
+	Description     *string                `json:"description,omitempty" db:"description"`
+	Type            *TicketType            `json:"type,omitempty" db:"type"`
+	Priority        *TicketPriority        `json:"priority,omitempty" db:"priority"`
+	Severity        *TicketSeverity        `json:"severity,omitempty" db:"severity"`
+	ResponseTime    *time.Duration         `json:"response_time,omitempty" db:"response_time"`
+	ResolutionTime  *time.Duration         `json:"resolution_time,omitempty" db:"resolution_time"`
+	EscalationTime  *time.Duration         `json:"escalation_time,omitempty" db:"escalation_time"`
+	EscalationRules map[string]interface{} `json:"escalation_rules,omitempty" db:"escalation_rules"`
+	BusinessHours   map[string]interface{} `json:"business_hours,omitempty" db:"business_hours"`
+	Holidays        []string               `json:"holidays,omitempty" db:"holidays"`
+	Enabled         bool                   `json:"enabled" db:"enabled"`
+	CreatedBy       string                 `json:"created_by" db:"created_by"`
+	UpdatedBy       *string                `json:"updated_by,omitempty" db:"updated_by"`
+	CreatedAt       time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time              `json:"updated_at" db:"updated_at"`
 }
 
 // Ticket 工单模型
@@ -136,6 +174,7 @@ type Ticket struct {
 	TeamID          *string           `json:"team_id,omitempty" db:"team_id"`
 	TeamName        *string           `json:"team_name,omitempty" db:"team_name"`
 	SLA             *TicketSLA        `json:"sla,omitempty" db:"sla"`
+	SLADeadline     *time.Time        `json:"sla_deadline,omitempty" db:"sla_deadline"`
 	DueDate         *time.Time        `json:"due_date,omitempty" db:"due_date"`
 	ResponseTime    *time.Time        `json:"response_time,omitempty" db:"response_time"`
 	ResolutionTime  *time.Time        `json:"resolution_time,omitempty" db:"resolution_time"`
@@ -241,8 +280,11 @@ type TicketFilter struct {
 	DataSourceID   *string         `json:"data_source_id,omitempty"`
 	CreatedStart   *time.Time      `json:"created_start,omitempty"`
 	CreatedEnd     *time.Time      `json:"created_end,omitempty"`
+	CreatedAfter   *time.Time      `json:"created_after,omitempty"`
+	CreatedBefore  *time.Time      `json:"created_before,omitempty"`
 	DueDateStart   *time.Time      `json:"due_date_start,omitempty"`
 	DueDateEnd     *time.Time      `json:"due_date_end,omitempty"`
+	DueSoon        *bool           `json:"due_soon,omitempty"`
 	Overdue        *bool           `json:"overdue,omitempty"`
 	Page           int             `json:"page" binding:"min=1"`
 	PageSize       int             `json:"page_size" binding:"min=1,max=100"`
@@ -250,27 +292,33 @@ type TicketFilter struct {
 	SortOrder      *string         `json:"sort_order,omitempty"` // asc, desc
 }
 
-// TicketList 工单列表响应
+// TicketList 工单列表
 type TicketList struct {
-	Tickets    []*Ticket `json:"tickets"`
-	Total      int64     `json:"total"`
-	Page       int       `json:"page"`
-	PageSize   int       `json:"page_size"`
-	TotalPages int       `json:"total_pages"`
+	Tickets     []*Ticket `json:"tickets"`
+	Total       int64     `json:"total"`
+	Page        int       `json:"page"`
+	PageSize    int       `json:"page_size"`
+	TotalPages  int       `json:"total_pages"`
+	HasNext     bool      `json:"has_next"`
+	HasPrevious bool      `json:"has_previous"`
 }
 
 // TicketStats 工单统计
 type TicketStats struct {
-	Total         int64                     `json:"total"`
-	ByType        map[TicketType]int64      `json:"by_type"`
-	ByStatus      map[TicketStatus]int64    `json:"by_status"`
-	ByPriority    map[TicketPriority]int64  `json:"by_priority"`
-	BySeverity    map[TicketSeverity]int64  `json:"by_severity"`
-	BySource      map[TicketSource]int64    `json:"by_source"`
-	OpenCount     int64                     `json:"open_count"`
-	ResolvedCount int64                     `json:"resolved_count"`
-	OverdueCount  int64                     `json:"overdue_count"`
-	AvgResolutionTime time.Duration         `json:"avg_resolution_time"`
+	Total         int64             `json:"total"`
+	ByType        map[string]int64  `json:"by_type"`
+	ByStatus      map[string]int64  `json:"by_status"`
+	ByPriority    map[string]int64  `json:"by_priority"`
+	BySeverity    map[string]int64  `json:"by_severity"`
+	BySource      map[string]int64  `json:"by_source"`
+	ByCategory    map[string]int64  `json:"by_category"`
+	Unassigned    int64             `json:"unassigned"`
+	OpenCount     int64             `json:"open_count"`
+	ResolvedCount int64             `json:"resolved_count"`
+	OverdueCount  int64             `json:"overdue_count"`
+	Overdue       int64             `json:"overdue"`
+	DueSoon       int64             `json:"due_soon"`
+	AvgResolutionTime time.Duration `json:"avg_resolution_time"`
 	AvgResponseTime   time.Duration         `json:"avg_response_time"`
 	SLACompliance     float64               `json:"sla_compliance"`
 }

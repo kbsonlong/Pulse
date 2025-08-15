@@ -62,8 +62,8 @@ CREATE TABLE knowledge_documents (
     tags VARCHAR(255)[], -- 标签数组
     
     -- 文档类型和状态
-    document_type knowledge_document_type DEFAULT 'article',
-    status knowledge_document_status DEFAULT 'draft',
+    document_type knowledge_doc_type DEFAULT 'guide',
+    status knowledge_doc_status DEFAULT 'draft',
     
     -- 优先级和重要性
     priority INTEGER DEFAULT 0, -- 数值越大优先级越高

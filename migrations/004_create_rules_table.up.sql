@@ -59,7 +59,7 @@ CREATE TABLE rules (
     condition TEXT, -- 条件表达式
     
     -- 告警配置
-    severity alert_severity NOT NULL DEFAULT 'warning',
+    severity alert_severity NOT NULL DEFAULT 'medium',
     for_duration INTEGER DEFAULT 0, -- 持续时间（秒）
     
     -- 标签和注解
@@ -149,7 +149,7 @@ CREATE TABLE rule_templates (
     
     -- 模板配置
     rule_type VARCHAR(50) NOT NULL,
-    default_severity alert_severity DEFAULT 'warning',
+    default_severity alert_severity DEFAULT 'medium',
     
     -- 标签和注解
     labels JSONB DEFAULT '{}',

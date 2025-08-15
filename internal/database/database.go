@@ -23,6 +23,13 @@ type DB struct {
 	logger *zap.Logger
 }
 
+// NewConnection 创建新的数据库连接（兼容性函数）
+func NewConnection(cfg *config.DatabaseConfig) (*DB, error) {
+	// 创建一个默认的logger
+	logger, _ := zap.NewDevelopment()
+	return New(cfg, logger)
+}
+
 // New 创建新的数据库连接
 func New(cfg *config.DatabaseConfig, logger *zap.Logger) (*DB, error) {
 	if cfg == nil {

@@ -16,6 +16,7 @@ import (
 // permissionRepository 权限仓储实现
 type permissionRepository struct {
 	db *sqlx.DB
+	tx *sqlx.Tx
 }
 
 // NewPermissionRepository 创建权限仓储实例
@@ -25,12 +26,27 @@ func NewPermissionRepository(db *sqlx.DB) PermissionRepository {
 	}
 }
 
+// NewPermissionRepositoryWithTx 创建带事务的权限仓储实例
+func NewPermissionRepositoryWithTx(tx *sqlx.Tx) PermissionRepository {
+	return &permissionRepository{
+		tx: tx,
+	}
+}
+
+// getExecutor 获取数据库执行器（事务或普通连接）
+func (r *permissionRepository) getExecutor() sqlx.ExtContext {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
+}
+
 // CheckPermission 检查用户是否有指定权限
 func (r *permissionRepository) CheckPermission(ctx context.Context, userID string, permission models.Permission) (bool, error) {
 	// 获取用户信息
 	var user models.User
 	query := `SELECT id, role, status FROM users WHERE id = $1 AND deleted_at IS NULL`
-	err := r.db.GetContext(ctx, &user, query, userID)
+	err := sqlx.GetContext(ctx, r.getExecutor(), &user, query, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, fmt.Errorf("用户不存在")
@@ -88,7 +104,7 @@ func (r *permissionRepository) GetUserPermissions(ctx context.Context, userID st
 	// 获取用户信息
 	var user models.User
 	query := `SELECT id, role, status FROM users WHERE id = $1 AND deleted_at IS NULL`
-	err := r.db.GetContext(ctx, &user, query, userID)
+	err := sqlx.GetContext(ctx, r.getExecutor(), &user, query, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("用户不存在")
@@ -166,7 +182,7 @@ func (r *permissionRepository) CreatePermissionGroup(ctx context.Context, group 
 			$1, $2, $3, $4, $5, $6
 		)`
 
-	_, err := r.db.ExecContext(ctx, query, group.ID, group.Name, group.Description, pq.Array(permissions), group.CreatedAt, group.UpdatedAt)
+	_, err := r.getExecutor().ExecContext(ctx, query, group.ID, group.Name, group.Description, pq.Array(permissions), group.CreatedAt, group.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("创建权限组失败: %w", err)
 	}
@@ -184,7 +200,7 @@ func (r *permissionRepository) GetPermissionGroup(ctx context.Context, id string
 		FROM permission_groups 
 		WHERE id = $1 AND deleted_at IS NULL`
 
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.getExecutor().QueryRowxContext(ctx, query, id).Scan(
 		&group.ID, &group.Name, &group.Description, &permissions,
 		&group.CreatedAt, &group.UpdatedAt, &group.DeletedAt,
 	)
@@ -359,7 +375,7 @@ func (r *permissionRepository) GetPermissionOverride(ctx context.Context, id str
 		FROM user_permission_overrides 
 		WHERE id = $1 AND deleted_at IS NULL`
 
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.getExecutor().QueryRowxContext(ctx, query, id).Scan(
 		&override.ID, &override.UserID, &permission, &override.Granted,
 		&override.GrantedBy, &override.Reason, &override.ExpiresAt,
 		&override.CreatedAt, &override.UpdatedAt, &override.DeletedAt,
@@ -577,7 +593,7 @@ func (r *permissionRepository) getActivePermissionOverride(ctx context.Context, 
 		ORDER BY created_at DESC
 		LIMIT 1`
 
-	err := r.db.QueryRowContext(ctx, query, userID, string(permission), time.Now()).Scan(
+	err := r.getExecutor().QueryRowxContext(ctx, query, userID, string(permission), time.Now()).Scan(
 		&override.ID, &override.UserID, &permissionStr, &override.Granted,
 		&override.GrantedBy, &override.Reason, &override.ExpiresAt,
 		&override.CreatedAt, &override.UpdatedAt,

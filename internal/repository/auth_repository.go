@@ -43,6 +43,7 @@ type AuthRepository interface {
 // authRepository 认证仓储实现
 type authRepository struct {
 	db *sqlx.DB
+	tx *sqlx.Tx
 }
 
 // NewAuthRepository 创建认证仓储实例
@@ -50,6 +51,21 @@ func NewAuthRepository(db *sqlx.DB) AuthRepository {
 	return &authRepository{
 		db: db,
 	}
+}
+
+// NewAuthRepositoryWithTx 创建带事务的认证仓储实例
+func NewAuthRepositoryWithTx(tx *sqlx.Tx) AuthRepository {
+	return &authRepository{
+		tx: tx,
+	}
+}
+
+// getExecutor 获取数据库执行器（事务或普通连接）
+func (r *authRepository) getExecutor() sqlx.ExtContext {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }
 
 // CreateSession 创建用户会话
@@ -71,7 +87,7 @@ func (r *authRepository) CreateSession(ctx context.Context, session *models.User
 			$1, $2, $3, $4, $5, $6, $7, $8, $9
 		)`
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.getExecutor().ExecContext(ctx, query,
 		session.ID, session.UserID, session.SessionToken, session.IPAddress,
 		session.UserAgent, session.LastActivity, session.ExpiresAt,
 		session.CreatedAt, session.UpdatedAt,
@@ -92,7 +108,7 @@ func (r *authRepository) GetSession(ctx context.Context, sessionID string) (*mod
 		FROM user_sessions 
 		WHERE id = $1`
 
-	err := r.db.GetContext(ctx, &session, query, sessionID)
+	err := sqlx.GetContext(ctx, r.getExecutor(), &session, query, sessionID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("会话不存在")
@@ -112,7 +128,7 @@ func (r *authRepository) GetUserSessions(ctx context.Context, userID string) ([]
 		WHERE user_id = $1
 		ORDER BY last_activity DESC`
 
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	rows, err := r.getExecutor().QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("获取用户会话列表失败: %w", err)
 	}
@@ -147,7 +163,7 @@ func (r *authRepository) UpdateSessionLastActivity(ctx context.Context, sessionI
 			updated_at = $2
 		WHERE id = $3`
 
-	result, err := r.db.ExecContext(ctx, query, lastActivity, time.Now(), sessionID)
+	result, err := r.getExecutor().ExecContext(ctx, query, lastActivity, time.Now(), sessionID)
 	if err != nil {
 		return fmt.Errorf("更新会话活动时间失败: %w", err)
 	}
@@ -168,7 +184,7 @@ func (r *authRepository) UpdateSessionLastActivity(ctx context.Context, sessionI
 func (r *authRepository) DeleteSession(ctx context.Context, sessionID string) error {
 	query := `DELETE FROM user_sessions WHERE id = $1`
 
-	result, err := r.db.ExecContext(ctx, query, sessionID)
+	result, err := r.getExecutor().ExecContext(ctx, query, sessionID)
 	if err != nil {
 		return fmt.Errorf("删除用户会话失败: %w", err)
 	}
@@ -189,7 +205,7 @@ func (r *authRepository) DeleteSession(ctx context.Context, sessionID string) er
 func (r *authRepository) DeleteUserSessions(ctx context.Context, userID string) error {
 	query := `DELETE FROM user_sessions WHERE user_id = $1`
 
-	_, err := r.db.ExecContext(ctx, query, userID)
+	_, err := r.getExecutor().ExecContext(ctx, query, userID)
 	if err != nil {
 		return fmt.Errorf("删除用户会话失败: %w", err)
 	}
@@ -202,7 +218,7 @@ func (r *authRepository) CleanupExpiredSessions(ctx context.Context) (int64, err
 	now := time.Now()
 	query := `DELETE FROM user_sessions WHERE expires_at < $1`
 
-	result, err := r.db.ExecContext(ctx, query, now)
+	result, err := r.getExecutor().ExecContext(ctx, query, now)
 	if err != nil {
 		return 0, fmt.Errorf("清理过期会话失败: %w", err)
 	}
@@ -232,7 +248,7 @@ func (r *authRepository) CreateRefreshToken(ctx context.Context, token *models.R
 			$1, $2, $3, $4, $5, $6
 		)`
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.getExecutor().ExecContext(ctx, query,
 		token.ID, token.UserID, token.Token, token.ExpiresAt,
 		token.CreatedAt, token.UpdatedAt,
 	)
@@ -251,7 +267,7 @@ func (r *authRepository) GetRefreshToken(ctx context.Context, tokenID string) (*
 		FROM refresh_tokens 
 		WHERE id = $1`
 
-	err := r.db.GetContext(ctx, &token, query, tokenID)
+	err := sqlx.GetContext(ctx, r.getExecutor(), &token, query, tokenID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("刷新令牌不存在")
@@ -270,7 +286,7 @@ func (r *authRepository) GetUserRefreshTokens(ctx context.Context, userID string
 		WHERE user_id = $1
 		ORDER BY created_at DESC`
 
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	rows, err := r.getExecutor().QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("获取用户刷新令牌失败: %w", err)
 	}
@@ -305,7 +321,7 @@ func (r *authRepository) RevokeRefreshToken(ctx context.Context, tokenID string)
 			updated_at = $1
 		WHERE id = $2 AND revoked_at IS NULL`
 
-	result, err := r.db.ExecContext(ctx, query, now, tokenID)
+	result, err := r.getExecutor().ExecContext(ctx, query, now, tokenID)
 	if err != nil {
 		return fmt.Errorf("撤销刷新令牌失败: %w", err)
 	}
@@ -331,7 +347,7 @@ func (r *authRepository) RevokeUserRefreshTokens(ctx context.Context, userID str
 			updated_at = $1
 		WHERE user_id = $2 AND revoked_at IS NULL`
 
-	_, err := r.db.ExecContext(ctx, query, now, userID)
+	_, err := r.getExecutor().ExecContext(ctx, query, now, userID)
 	if err != nil {
 		return fmt.Errorf("撤销用户刷新令牌失败: %w", err)
 	}
@@ -344,7 +360,7 @@ func (r *authRepository) CleanupExpiredRefreshTokens(ctx context.Context) (int64
 	now := time.Now()
 	query := `DELETE FROM refresh_tokens WHERE expires_at < $1 OR revoked_at IS NOT NULL`
 
-	result, err := r.db.ExecContext(ctx, query, now)
+	result, err := r.getExecutor().ExecContext(ctx, query, now)
 	if err != nil {
 		return 0, fmt.Errorf("清理过期刷新令牌失败: %w", err)
 	}
@@ -372,7 +388,7 @@ func (r *authRepository) CreateLoginAttempt(ctx context.Context, attempt *models
 			$1, $2, $3, $4, $5, $6, $7
 		)`
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.getExecutor().ExecContext(ctx, query,
 		attempt.ID, attempt.Identifier, attempt.IPAddress, attempt.UserAgent,
 		attempt.Success, attempt.FailReason, attempt.CreatedAt,
 	)
@@ -391,7 +407,7 @@ func (r *authRepository) GetLoginAttempts(ctx context.Context, identifier string
 		WHERE identifier = $1 AND created_at >= $2
 		ORDER BY created_at DESC`
 
-	rows, err := r.db.QueryContext(ctx, query, identifier, since)
+	rows, err := r.getExecutor().QueryContext(ctx, query, identifier, since)
 	if err != nil {
 		return nil, fmt.Errorf("获取登录尝试记录失败: %w", err)
 	}
@@ -426,7 +442,7 @@ func (r *authRepository) GetFailedLoginAttempts(ctx context.Context, identifier 
 		FROM login_attempts 
 		WHERE identifier = $1 AND created_at >= $2 AND success = false`
 
-	err := r.db.GetContext(ctx, &count, query, identifier, since)
+	err := sqlx.GetContext(ctx, r.getExecutor(), &count, query, identifier, since)
 	if err != nil {
 		return 0, fmt.Errorf("获取失败登录尝试次数失败: %w", err)
 	}
@@ -438,7 +454,7 @@ func (r *authRepository) GetFailedLoginAttempts(ctx context.Context, identifier 
 func (r *authRepository) CleanupOldLoginAttempts(ctx context.Context, before time.Time) (int64, error) {
 	query := `DELETE FROM login_attempts WHERE created_at < $1`
 
-	result, err := r.db.ExecContext(ctx, query, before)
+	result, err := r.getExecutor().ExecContext(ctx, query, before)
 	if err != nil {
 		return 0, fmt.Errorf("清理旧登录尝试记录失败: %w", err)
 	}

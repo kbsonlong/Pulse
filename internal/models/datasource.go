@@ -75,15 +75,27 @@ type DataSource struct {
 	DeletedAt       *time.Time        `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
+// DataSourceHealthStatus 数据源健康状态
+type DataSourceHealthStatus string
+
+const (
+	DataSourceHealthStatusHealthy   DataSourceHealthStatus = "healthy"
+	DataSourceHealthStatusUnhealthy DataSourceHealthStatus = "unhealthy"
+	DataSourceHealthStatusUnknown   DataSourceHealthStatus = "unknown"
+)
+
 // DataSourceMetrics 数据源指标
 type DataSourceMetrics struct {
-	ConnectionCount   int64     `json:"connection_count"`
+	ConnectionCount   int       `json:"connection_count"`
 	QueryCount        int64     `json:"query_count"`
 	ErrorCount        int64     `json:"error_count"`
 	AvgResponseTime   float64   `json:"avg_response_time"`
 	LastQueryAt       *time.Time `json:"last_query_at,omitempty"`
+	LastErrorAt       *time.Time `json:"last_error_at,omitempty"`
+	LastErrorMessage  *string   `json:"last_error_message,omitempty"`
 	DataSize          *int64    `json:"data_size,omitempty"`
-	Uptime            *float64  `json:"uptime,omitempty"`
+	IndexSize         *int64    `json:"index_size,omitempty"`
+	TotalSize         *int64    `json:"total_size,omitempty"`
 }
 
 // DataSourceCreateRequest 创建数据源请求

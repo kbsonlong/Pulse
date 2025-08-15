@@ -65,6 +65,7 @@ type Rule struct {
 	Description     string           `json:"description" db:"description"`
 	Type            RuleType         `json:"type" db:"type"`
 	Status          RuleStatus       `json:"status" db:"status"`
+	Enabled         bool             `json:"enabled" db:"enabled"`
 	Severity        AlertSeverity    `json:"severity" db:"severity"`
 	Expression      string           `json:"expression" db:"expression"`
 	Conditions      []RuleCondition  `json:"conditions" db:"conditions"`
@@ -73,6 +74,7 @@ type Rule struct {
 	Annotations     map[string]string `json:"annotations" db:"annotations"`
 	EvaluationInterval time.Duration `json:"evaluation_interval" db:"evaluation_interval"`
 	ForDuration     time.Duration    `json:"for_duration" db:"for_duration"`
+	KeepFiringFor   time.Duration    `json:"keep_firing_for" db:"keep_firing_for"`
 	Threshold       *float64         `json:"threshold,omitempty" db:"threshold"`
 	RecoveryThreshold *float64       `json:"recovery_threshold,omitempty" db:"recovery_threshold"`
 	NoDataState     *string          `json:"no_data_state,omitempty" db:"no_data_state"`
@@ -150,6 +152,7 @@ type RuleFilter struct {
 	Type         *RuleType     `json:"type,omitempty"`
 	Status       *RuleStatus   `json:"status,omitempty"`
 	Severity     *AlertSeverity `json:"severity,omitempty"`
+	Enabled      *bool         `json:"enabled,omitempty"`
 	Keyword      *string       `json:"keyword,omitempty"` // 搜索名称、描述
 	Labels       map[string]string `json:"labels,omitempty"`
 	CreatedBy    *string       `json:"created_by,omitempty"`
@@ -167,7 +170,7 @@ type RuleList struct {
 	Total      int64   `json:"total"`
 	Page       int     `json:"page"`
 	PageSize   int     `json:"page_size"`
-	TotalPages int     `json:"total_pages"`
+	TotalPages int64   `json:"total_pages"`
 }
 
 // RuleStats 规则统计
@@ -178,6 +181,11 @@ type RuleStats struct {
 	BySeverity map[AlertSeverity]int64 `json:"by_severity"`
 	ActiveRules int64              `json:"active_rules"`
 	FiringRules int64              `json:"firing_rules"`
+	Enabled     int64              `json:"enabled"`
+	Disabled    int64              `json:"disabled"`
+	Active      int64              `json:"active"`
+	Triggered   int64              `json:"triggered"`
+	Pending     int64              `json:"pending"`
 }
 
 // TimeRange 时间范围

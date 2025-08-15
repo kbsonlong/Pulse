@@ -128,27 +128,27 @@ type NotificationConfig struct {
 // SMTPConfig 邮件配置
 type SMTPConfig struct {
 	Host     string `mapstructure:"SMTP_HOST"`
-	Port     int    `mapstructure:"SMTP_PORT" validate:"min=1,max=65535"`
+	Port     int    `mapstructure:"SMTP_PORT" validate:"omitempty,min=1,max=65535"`
 	Username string `mapstructure:"SMTP_USERNAME"`
 	Password string `mapstructure:"SMTP_PASSWORD"`
-	From     string `mapstructure:"SMTP_FROM" validate:"email"`
+	From     string `mapstructure:"SMTP_FROM" validate:"omitempty,email"`
 	TLS      bool   `mapstructure:"SMTP_TLS"`
 }
 
 // DingTalkConfig 钉钉配置
 type DingTalkConfig struct {
-	WebhookURL string `mapstructure:"DINGTALK_WEBHOOK_URL" validate:"url"`
+	WebhookURL string `mapstructure:"DINGTALK_WEBHOOK_URL" validate:"omitempty,url"`
 	Secret     string `mapstructure:"DINGTALK_SECRET"`
 }
 
 // WeComConfig 企业微信配置
 type WeComConfig struct {
-	WebhookURL string `mapstructure:"WECOM_WEBHOOK_URL" validate:"url"`
+	WebhookURL string `mapstructure:"WECOM_WEBHOOK_URL" validate:"omitempty,url"`
 }
 
 // SlackConfig Slack 配置
 type SlackConfig struct {
-	WebhookURL string `mapstructure:"SLACK_WEBHOOK_URL" validate:"url"`
+	WebhookURL string `mapstructure:"SLACK_WEBHOOK_URL" validate:"omitempty,url"`
 }
 
 // DataSourcesConfig 监控数据源配置

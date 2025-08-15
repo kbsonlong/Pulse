@@ -12,7 +12,7 @@ CREATE TABLE data_sources (
     description TEXT,
     
     -- 数据源类型和配置
-    type data_source_type NOT NULL,
+    type datasource_type NOT NULL,
     version VARCHAR(50),
     
     -- 连接配置
@@ -41,7 +41,7 @@ CREATE TABLE data_sources (
     max_query_length INTEGER DEFAULT 10000,
     
     -- 状态信息
-    status data_source_status NOT NULL DEFAULT 'unknown',
+    status datasource_status NOT NULL DEFAULT 'active',
     enabled BOOLEAN DEFAULT TRUE,
     
     -- 健康检查
@@ -158,7 +158,7 @@ CREATE TABLE data_source_templates (
     category VARCHAR(100), -- 模板分类
     
     -- 模板配置
-    type data_source_type NOT NULL,
+    type datasource_type NOT NULL,
     template_config JSONB NOT NULL, -- 模板配置
     default_values JSONB DEFAULT '{}', -- 默认值
     required_fields JSONB DEFAULT '[]', -- 必填字段

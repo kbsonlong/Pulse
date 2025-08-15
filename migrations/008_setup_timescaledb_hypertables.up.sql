@@ -32,7 +32,7 @@ SELECT create_hypertable(
 -- 创建data_source_health_checks超表（数据源健康检查时序数据）
 SELECT create_hypertable(
     'data_source_health_checks',
-    'checked_at',
+    'check_time',
     chunk_time_interval => INTERVAL '1 hour',
     if_not_exists => TRUE
 );
@@ -40,7 +40,7 @@ SELECT create_hypertable(
 -- 创建data_source_queries超表（数据源查询历史时序数据）
 SELECT create_hypertable(
     'data_source_queries',
-    'executed_at',
+    'query_time',
     chunk_time_interval => INTERVAL '1 day',
     if_not_exists => TRUE
 );
@@ -221,13 +221,13 @@ WITH NO DATA;
 CREATE MATERIALIZED VIEW data_source_health_hourly
 WITH (timescaledb.continuous) AS
 SELECT
-    time_bucket('1 hour', checked_at) AS hour,
+    time_bucket('1 hour', check_time) AS hour,
     data_source_id,
-    AVG(response_time_ms) AS avg_response_time,
-    MAX(response_time_ms) AS max_response_time,
+    AVG(duration_ms) AS avg_response_time,
+    MAX(duration_ms) AS max_response_time,
     COUNT(*) AS total_checks,
-    COUNT(*) FILTER (WHERE is_healthy = true) AS healthy_checks,
-    COUNT(*) FILTER (WHERE is_healthy = false) AS unhealthy_checks
+    COUNT(*) FILTER (WHERE success = true) AS healthy_checks,
+    COUNT(*) FILTER (WHERE success = false) AS unhealthy_checks
 FROM data_source_health_checks
 GROUP BY hour, data_source_id
 WITH NO DATA;
@@ -292,7 +292,7 @@ ON alert_metrics (alert_id, metric_name, timestamp DESC);
 
 -- data_source_health_checks 时序优化索引
 CREATE INDEX IF NOT EXISTS idx_data_source_health_source_time 
-ON data_source_health_checks (data_source_id, checked_at DESC);
+ON data_source_health_checks (data_source_id, check_time DESC);
 
 -- knowledge_document_access_logs 时序优化索引
 CREATE INDEX IF NOT EXISTS idx_knowledge_access_doc_time 
@@ -355,14 +355,14 @@ BEGIN
     RETURN QUERY
     SELECT 
         COUNT(*) as total_checks,
-        COUNT(*) FILTER (WHERE dsh.is_healthy = true) as healthy_checks,
-        COUNT(*) FILTER (WHERE dsh.is_healthy = false) as unhealthy_checks,
-        AVG(dsh.response_time_ms) as avg_response_time,
-        (COUNT(*) FILTER (WHERE dsh.is_healthy = true) * 100.0 / COUNT(*)) as uptime_percentage
+        COUNT(*) FILTER (WHERE dsh.success = true) as healthy_checks,
+        COUNT(*) FILTER (WHERE dsh.success = false) as unhealthy_checks,
+        AVG(dsh.duration_ms) as avg_response_time,
+        (COUNT(*) FILTER (WHERE dsh.success = true) * 100.0 / COUNT(*)) as uptime_percentage
     FROM data_source_health_checks dsh
     WHERE dsh.data_source_id = p_data_source_id
-      AND dsh.checked_at >= p_start_time
-      AND dsh.checked_at <= p_end_time;
+      AND dsh.check_time >= p_start_time
+      AND dsh.check_time <= p_end_time;
 END;
 $$ LANGUAGE plpgsql;
 

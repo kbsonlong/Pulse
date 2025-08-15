@@ -18,6 +18,13 @@ type Client struct {
 	config *config.RedisConfig
 }
 
+// NewConnection 创建新的Redis客户端（兼容性函数）
+func NewConnection(cfg *config.RedisConfig) (*Client, error) {
+	// 创建一个默认的logger
+	logger, _ := zap.NewDevelopment()
+	return New(cfg, logger)
+}
+
 // New 创建新的Redis客户端
 func New(cfg *config.RedisConfig, logger *zap.Logger) (*Client, error) {
 	if cfg == nil {

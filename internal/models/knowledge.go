@@ -119,6 +119,9 @@ type KnowledgeMetrics struct {
 	LastViewedAt  *time.Time `json:"last_viewed_at,omitempty"`
 }
 
+// KnowledgeArticle 知识文章（Knowledge的别名）
+type KnowledgeArticle = Knowledge
+
 // Knowledge 知识模型
 type Knowledge struct {
 	ID           string               `json:"id" db:"id"`
@@ -149,7 +152,15 @@ type Knowledge struct {
 	TemplateData map[string]interface{} `json:"template_data,omitempty" db:"template_data"`
 	Metadata     map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
 	Metrics      *KnowledgeMetrics    `json:"metrics,omitempty" db:"metrics"`
-	RelatedIDs   []string             `json:"related_ids" db:"related_ids"`
+	ViewCount     int64                `json:"view_count" db:"view_count"`
+	LikeCount     int64                `json:"like_count" db:"like_count"`
+	DislikeCount  int64                `json:"dislike_count" db:"dislike_count"`
+	ShareCount    int64                `json:"share_count" db:"share_count"`
+	DownloadCount int64                `json:"download_count" db:"download_count"`
+	Rating        *float64             `json:"rating,omitempty" db:"rating"`
+	RatingCount   int64                `json:"rating_count" db:"rating_count"`
+	Featured      bool                 `json:"featured" db:"featured"`
+	RelatedIDs    []string             `json:"related_ids" db:"related_ids"`
 	ExpiresAt    *time.Time           `json:"expires_at,omitempty" db:"expires_at"`
 	PublishedAt  *time.Time           `json:"published_at,omitempty" db:"published_at"`
 	ArchivedAt   *time.Time           `json:"archived_at,omitempty" db:"archived_at"`
@@ -277,11 +288,14 @@ type KnowledgeStats struct {
 
 // KnowledgeSearchResult 知识搜索结果
 type KnowledgeSearchResult struct {
-	Knowledge []*Knowledge `json:"knowledge"`
-	Total     int64        `json:"total"`
-	Query     string       `json:"query"`
-	TookMs    int64        `json:"took_ms"`
-	Facets    map[string]interface{} `json:"facets,omitempty"`
+	Knowledge  []*Knowledge `json:"knowledge"`
+	Total      int64        `json:"total"`
+	Query      string       `json:"query"`
+	TookMs     int64        `json:"took_ms"`
+	Page       int          `json:"page"`
+	PageSize   int          `json:"page_size"`
+	TotalPages int          `json:"total_pages"`
+	Facets     map[string]interface{} `json:"facets,omitempty"`
 }
 
 // 验证方法

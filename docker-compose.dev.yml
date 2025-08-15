@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  # 开发环境PostgreSQL
+  # 开发环境PostgreSQL with TimescaleDB
   postgres-dev:
-    image: postgres:15-alpine
+    image: timescale/timescaledb:latest-pg15
     environment:
       - POSTGRES_USER=alert_user
       - POSTGRES_PASSWORD=alert_password
@@ -12,7 +12,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
-      - ./scripts/init-dev-db.sql:/docker-entrypoint-initdb.d/init-dev-db.sql
     networks:
       - alert-dev-network
     restart: unless-stopped
