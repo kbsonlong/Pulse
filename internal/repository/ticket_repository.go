@@ -172,41 +172,29 @@ func (r *ticketRepository) Update(ctx context.Context, ticket *models.Ticket) er
 
 	query := `
 		UPDATE tickets SET 
-			title = :title,
-			description = :description,
-			status = :status,
-			priority = :priority,
-			category = :category,
-			type = :type,
-			source = :source,
-			assignee_id = :assignee_id,
-			tags = :tags,
-			custom_fields = :custom_fields,
-			due_date = :due_date,
-			sla_deadline = :sla_deadline,
-			resolved_at = :resolved_at,
-			closed_at = :closed_at,
-			updated_at = :updated_at
-		WHERE id = :id AND deleted_at IS NULL`
+			title = $2,
+			description = $3,
+			status = $4,
+			priority = $5,
+			category = $6,
+			type = $7,
+			source = $8,
+			assignee_id = $9,
+			tags = $10,
+			custom_fields = $11,
+			due_date = $12,
+			sla_deadline = $13,
+			resolved_at = $14,
+			closed_at = $15,
+			updated_at = $16
+		WHERE id = $1 AND deleted_at IS NULL`
 
-	_, err = r.db.NamedExecContext(ctx, query, map[string]interface{}{
-		"id":            ticket.ID,
-		"title":         ticket.Title,
-		"description":   ticket.Description,
-		"status":        ticket.Status,
-		"priority":      ticket.Priority,
-		"category":      ticket.Category,
-		"type":          ticket.Type,
-		"source":        ticket.Source,
-		"assignee_id":   ticket.AssigneeID,
-		"tags":          string(tagsJSON),
-		"custom_fields": string(customFieldsJSON),
-		"due_date":      ticket.DueDate,
-		"sla_deadline":  ticket.SLADeadline,
-		"resolved_at":   ticket.ResolvedAt,
-		"closed_at":     ticket.ClosedAt,
-		"updated_at":    ticket.UpdatedAt,
-	})
+	_, err = r.db.ExecContext(ctx, query,
+		ticket.ID, ticket.Title, ticket.Description, ticket.Status, ticket.Priority,
+		ticket.Category, ticket.Type, ticket.Source, ticket.AssigneeID, string(tagsJSON),
+		string(customFieldsJSON), ticket.DueDate, ticket.SLADeadline, ticket.ResolvedAt,
+		ticket.ClosedAt, ticket.UpdatedAt,
+	)
 
 	if err != nil {
 		return fmt.Errorf("更新工单失败: %w", err)

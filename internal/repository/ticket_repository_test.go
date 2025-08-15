@@ -121,12 +121,18 @@ func TestTicketRepository_Update(t *testing.T) {
 		Description: "Updated Description",
 		Status:      models.TicketStatusInProgress,
 		Priority:    models.TicketPriorityHigh,
+		Category:    stringPtr("support"),
 		Type:        models.TicketTypeIncident,
+		Source:      models.TicketSourceManual,
 		ReporterID:  "user-1",
 		AssigneeID:  stringPtr("user-2"),
 		TeamID:      stringPtr("team-1"),
 		Tags:        []string{"bug", "critical"},
 		CustomFields: map[string]interface{}{"source": "api"},
+		DueDate:     nil,
+		SLADeadline: nil,
+		ResolvedAt:  nil,
+		ClosedAt:    nil,
 	}
 
 	tagsJSON, _ := json.Marshal(ticket.Tags)
