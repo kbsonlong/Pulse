@@ -219,7 +219,7 @@ func (r *ruleRepository) Update(ctx context.Context, rule *models.Rule) error {
 			updated_at = $22
 		WHERE id = $1 AND deleted_at IS NULL`
 
-	_, err = r.getExecutor().ExecContext(ctx, query,
+	result, err := r.getExecutor().ExecContext(ctx, query,
 		rule.ID, rule.Name, rule.Description, rule.Type, rule.Severity,
 		rule.Status, rule.Enabled, rule.Expression, string(conditionsJSON),
 		string(actionsJSON), string(labelsJSON), string(annotationsJSON),
@@ -230,6 +230,15 @@ func (r *ruleRepository) Update(ctx context.Context, rule *models.Rule) error {
 
 	if err != nil {
 		return fmt.Errorf("更新规则失败: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("获取影响行数失败: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("规则不存在或已删除: %s", rule.ID)
 	}
 
 	return nil

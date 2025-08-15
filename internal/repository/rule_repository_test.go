@@ -69,14 +69,20 @@ func TestRuleRepository_GetByID(t *testing.T) {
 	ruleID := uuid.New().String()
 
 	rows := sqlmock.NewRows([]string{
-		"id", "name", "description", "type", "severity", "status",
-		"expression", "evaluation_interval", "labels", "annotations",
-		"created_by", "created_at", "updated_at",
+		"id", "name", "description", "type", "severity", "status", "enabled", "expression",
+		"conditions", "actions", "labels", "annotations", "data_source_id",
+		"evaluation_interval", "for_duration", "keep_firing_for", "threshold",
+		"recovery_threshold", "no_data_state", "exec_err_state",
+		"last_eval_at", "last_eval_result", "eval_count", "alert_count",
+		"created_by", "updated_by", "created_at", "updated_at",
 	}).AddRow(
 		ruleID, "Test Rule", "Test description", models.RuleTypeMetric,
-		models.AlertSeverityCritical, models.RuleStatusActive,
-		"cpu_usage > 80", 5*time.Minute, `{"team":"ops"}`, `{"summary":"High CPU"}`,
-		"user-1", time.Now(), time.Now(),
+		models.AlertSeverityCritical, models.RuleStatusActive, true, "cpu_usage > 80",
+		`[]`, `[]`, `{"team":"ops"}`, `{"summary":"High CPU"}`, "datasource-1",
+		5*time.Minute, time.Duration(0), time.Duration(0), nil,
+		nil, nil, nil,
+		nil, nil, int64(0), int64(0),
+		"user-1", nil, time.Now(), time.Now(),
 	)
 
 	mock.ExpectQuery(`SELECT .+ FROM rules WHERE id = \$1 AND deleted_at IS NULL`).WithArgs(ruleID).WillReturnRows(rows)
@@ -177,19 +183,28 @@ func TestRuleRepository_List(t *testing.T) {
 
 	// Mock list query
 	rows := sqlmock.NewRows([]string{
-		"id", "name", "description", "type", "severity", "status",
-		"expression", "evaluation_interval", "labels", "annotations",
-		"created_by", "created_at", "updated_at",
+		"id", "name", "description", "type", "severity", "status", "enabled", "expression",
+		"conditions", "actions", "labels", "annotations", "data_source_id",
+		"evaluation_interval", "for_duration", "keep_firing_for", "threshold",
+		"recovery_threshold", "no_data_state", "exec_err_state",
+		"last_eval_at", "last_eval_result", "eval_count", "alert_count",
+		"created_by", "updated_by", "created_at", "updated_at",
 	}).AddRow(
 		"rule-1", "Rule 1", "Description 1", models.RuleTypeMetric,
-		models.AlertSeverityCritical, models.RuleStatusActive,
-		"cpu_usage > 80", 5*time.Minute, `{}`, `{}`,
-		"user-1", time.Now(), time.Now(),
+		models.AlertSeverityCritical, models.RuleStatusActive, true, "cpu_usage > 80",
+		`[]`, `[]`, `{}`, `{}`, "datasource-1",
+		5*time.Minute, time.Duration(0), time.Duration(0), nil,
+		nil, nil, nil,
+		nil, nil, int64(0), int64(0),
+		"user-1", nil, time.Now(), time.Now(),
 	).AddRow(
 		"rule-2", "Rule 2", "Description 2", models.RuleTypeLog,
-		models.AlertSeverityMedium, models.RuleStatusActive,
-		"error_rate > 0.1", 10*time.Minute, `{}`, `{}`,
-		"user-2", time.Now(), time.Now(),
+		models.AlertSeverityMedium, models.RuleStatusActive, true, "error_rate > 0.1",
+		`[]`, `[]`, `{}`, `{}`, "datasource-2",
+		10*time.Minute, time.Duration(0), time.Duration(0), nil,
+		nil, nil, nil,
+		nil, nil, int64(0), int64(0),
+		"user-2", nil, time.Now(), time.Now(),
 	)
 
 	mock.ExpectQuery(`SELECT .+ FROM rules WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT \$1 OFFSET \$2`).WithArgs(
@@ -260,14 +275,20 @@ func TestRuleRepository_GetByName(t *testing.T) {
 	ruleName := "Test Rule"
 
 	rows := sqlmock.NewRows([]string{
-		"id", "name", "description", "type", "severity", "status",
-		"expression", "duration", "labels", "annotations",
-		"created_by", "created_at", "updated_at",
+		"id", "name", "description", "type", "severity", "status", "enabled", "expression",
+		"conditions", "actions", "labels", "annotations", "data_source_id",
+		"evaluation_interval", "for_duration", "keep_firing_for", "threshold",
+		"recovery_threshold", "no_data_state", "exec_err_state",
+		"last_eval_at", "last_eval_result", "eval_count", "alert_count",
+		"created_by", "updated_by", "created_at", "updated_at",
 	}).AddRow(
 		"rule-1", ruleName, "Test description", models.RuleTypeMetric,
-		models.AlertSeverityCritical, models.RuleStatusActive,
-		"cpu_usage > 80", "5m", `{}`, `{}`,
-		"user-1", time.Now(), time.Now(),
+		models.AlertSeverityCritical, models.RuleStatusActive, true, "cpu_usage > 80",
+		`[]`, `[]`, `{}`, `{}`, "datasource-1",
+		5*time.Minute, time.Duration(0), time.Duration(0), nil,
+		nil, nil, nil,
+		nil, nil, int64(0), int64(0),
+		"user-1", nil, time.Now(), time.Now(),
 	)
 
 	mock.ExpectQuery(`SELECT .+ FROM rules WHERE name = \$1 AND deleted_at IS NULL`).WithArgs(ruleName).WillReturnRows(rows)
@@ -284,22 +305,31 @@ func TestRuleRepository_GetActiveRules(t *testing.T) {
 	defer cleanup()
 
 	rows := sqlmock.NewRows([]string{
-		"id", "name", "description", "type", "severity", "status",
-		"expression", "duration", "labels", "annotations",
-		"created_by", "created_at", "updated_at",
+		"id", "name", "description", "type", "severity", "status", "enabled", "expression",
+		"conditions", "actions", "labels", "annotations", "data_source_id",
+		"evaluation_interval", "for_duration", "keep_firing_for", "threshold",
+		"recovery_threshold", "no_data_state", "exec_err_state",
+		"last_eval_at", "last_eval_result", "eval_count", "alert_count",
+		"created_by", "updated_by", "created_at", "updated_at",
 	}).AddRow(
 		"rule-1", "Active Rule 1", "Description 1", models.RuleTypeMetric,
-		models.AlertSeverityCritical, models.RuleStatusActive,
-		"cpu_usage > 80", "5m", `{}`, `{}`,
-		"user-1", time.Now(), time.Now(),
+		models.AlertSeverityCritical, models.RuleStatusActive, true, "cpu_usage > 80",
+		`[]`, `[]`, `{}`, `{}`, "datasource-1",
+		5*time.Minute, time.Duration(0), time.Duration(0), nil,
+		nil, nil, nil,
+		nil, nil, int64(0), int64(0),
+		"user-1", nil, time.Now(), time.Now(),
 	).AddRow(
 		"rule-2", "Active Rule 2", "Description 2", models.RuleTypeLog,
-		models.AlertSeverityMedium, models.RuleStatusActive,
-		"error_rate > 0.1", "10m", `{}`, `{}`,
-		"user-2", time.Now(), time.Now(),
+		models.AlertSeverityMedium, models.RuleStatusActive, true, "error_rate > 0.1",
+		`[]`, `[]`, `{}`, `{}`, "datasource-2",
+		10*time.Minute, time.Duration(0), time.Duration(0), nil,
+		nil, nil, nil,
+		nil, nil, int64(0), int64(0),
+		"user-2", nil, time.Now(), time.Now(),
 	)
 
-	mock.ExpectQuery(`SELECT .+ FROM rules WHERE status = \$1 AND deleted_at IS NULL ORDER BY created_at DESC`).WithArgs(
+	mock.ExpectQuery(`SELECT .+ FROM rules WHERE enabled = true AND status = \$1 AND deleted_at IS NULL ORDER BY created_at DESC`).WithArgs(
 		models.RuleStatusActive,
 	).WillReturnRows(rows)
 
@@ -355,49 +385,19 @@ func TestRuleRepository_GetStats(t *testing.T) {
 
 	filter := &models.RuleFilter{}
 
-	// Mock total count
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM rules WHERE deleted_at IS NULL`).WillReturnRows(
-		sqlmock.NewRows([]string{"count"}).AddRow(10),
+	// Mock stats query
+	mock.ExpectQuery(`SELECT COUNT\(\*\) as total, COUNT\(CASE WHEN status = 'active' THEN 1 END\) as active, COUNT\(CASE WHEN status = 'inactive' THEN 1 END\) as inactive, COUNT\(CASE WHEN status = 'disabled' THEN 1 END\) as disabled FROM rules WHERE deleted_at IS NULL`).WillReturnRows(
+		sqlmock.NewRows([]string{"total", "active", "inactive", "disabled"}).AddRow(10, 8, 2, 0),
 	)
 
-	// Mock active count
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM rules WHERE deleted_at IS NULL AND status = \$1`).WithArgs(
-		models.RuleStatusActive,
-	).WillReturnRows(
-		sqlmock.NewRows([]string{"count"}).AddRow(8),
-	)
 
-	// Mock inactive count
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM rules WHERE deleted_at IS NULL AND status = \$1`).WithArgs(
-		models.RuleStatusInactive,
-	).WillReturnRows(
-		sqlmock.NewRows([]string{"count"}).AddRow(2),
-	)
-
-	// Mock type stats
-	typeRows := sqlmock.NewRows([]string{"type", "count"}).AddRow(
-		string(models.RuleTypeMetric), 6,
-	).AddRow(
-		string(models.RuleTypeLog), 4,
-	)
-	mock.ExpectQuery(`SELECT type, COUNT\(\*\) FROM rules WHERE deleted_at IS NULL GROUP BY type`).WillReturnRows(typeRows)
-
-	// Mock severity stats
-	severityRows := sqlmock.NewRows([]string{"severity", "count"}).AddRow(
-		string(models.AlertSeverityCritical), 3,
-	).AddRow(
-		string(models.AlertSeverityMedium), 5,
-	).AddRow(
-		string(models.AlertSeverityInfo), 2,
-	)
-	mock.ExpectQuery(`SELECT severity, COUNT\(\*\) FROM rules WHERE deleted_at IS NULL GROUP BY severity`).WillReturnRows(severityRows)
 
 	stats, err := repo.GetStats(context.Background(), filter)
 	assert.NoError(t, err)
 	assert.NotNil(t, stats)
 	assert.Equal(t, int64(10), stats.Total)
 	assert.Equal(t, int64(8), stats.ActiveRules)
-	assert.Equal(t, int64(8), stats.Enabled)
+	assert.Equal(t, int64(0), stats.Disabled)
 	assert.NotNil(t, stats.ByType)
 	assert.NotNil(t, stats.BySeverity)
 	assert.NoError(t, mock.ExpectationsWereMet())

@@ -74,13 +74,13 @@ func (r *alertRepository) Create(ctx context.Context, alert *models.Alert) error
 		INSERT INTO alerts (
 			id, rule_id, data_source_id, name, description, severity, status, source,
 			labels, annotations, value, threshold, expression, starts_at, ends_at,
-			last_evaluated_at, evaluation_count, fingerprint, generator_url,
+			last_eval_at, eval_count, fingerprint, generator_url,
 			silence_id, acked_by, acked_at, resolved_by, resolved_at,
 			created_at, updated_at
 		) VALUES (
 			:id, :rule_id, :data_source_id, :name, :description, :severity, :status, :source,
 			:labels, :annotations, :value, :threshold, :expression, :starts_at, :ends_at,
-			:last_evaluated_at, :evaluation_count, :fingerprint, :generator_url,
+			:last_eval_at, :eval_count, :fingerprint, :generator_url,
 			:silence_id, :acked_by, :acked_at, :resolved_by, :resolved_at,
 			:created_at, :updated_at
 		)`

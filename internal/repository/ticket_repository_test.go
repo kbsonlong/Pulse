@@ -9,6 +9,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -83,15 +84,14 @@ func TestTicketRepository_GetByID(t *testing.T) {
 	}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "number", "title", "description", "type", "status",
-		"priority", "severity", "source", "reporter_id", "reporter_name",
-		"tags", "labels", "custom_fields", "created_at", "updated_at",
+		"id", "title", "description", "status", "priority", "category", "type", "source",
+		"reporter_id", "assignee_id", "tags", "custom_fields", "due_date", "sla_deadline",
+		"resolved_at", "closed_at", "created_at", "updated_at",
 	}).AddRow(
-		ticket.ID, ticket.Number, ticket.Title, ticket.Description,
-		ticket.Type, ticket.Status, ticket.Priority, ticket.Severity,
-		ticket.Source, ticket.ReporterID, ticket.ReporterName,
-		`["test","incident"]`, `{"env":"test"}`, `{"key":"value"}`,
-		time.Now(), time.Now(),
+		ticket.ID, ticket.Title, ticket.Description, ticket.Status, ticket.Priority,
+		nil, ticket.Type, ticket.Source, ticket.ReporterID, nil,
+		`["test","incident"]`, `{"key":"value"}`, nil, nil,
+		nil, nil, time.Now(), time.Now(),
 	)
 
 	mock.ExpectQuery("SELECT .+ FROM tickets WHERE id = \\$1").WithArgs("ticket-1").WillReturnRows(rows)
@@ -192,14 +192,14 @@ func TestTicketRepository_List(t *testing.T) {
 	mock.ExpectQuery(`SELECT (.+) FROM tickets`).
 		WithArgs(models.TicketStatusOpen, 10, 0).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "title", "description", "status", "priority", "type", "reporter_id",
-			"assignee_id", "team_id", "tags", "custom_fields", "created_at", "updated_at",
-			"resolved_at", "closed_at", "due_date", "sla_breach_at",
+			"id", "title", "description", "status", "priority", "category", "type", "source",
+			"reporter_id", "assignee_id", "tags", "custom_fields", "due_date", "sla_deadline",
+			"resolved_at", "closed_at", "created_at", "updated_at",
 		}).AddRow(
-			"ticket-1", "Test Ticket", "Test Description", models.TicketStatusOpen,
-			models.TicketPriorityMedium, models.TicketTypeIncident, "user-1",
-			"user-2", "team-1", string(tagsJSON), string(customFieldsJSON),
-			time.Now(), time.Now(), nil, nil, nil, nil,
+			"ticket-1", "Test Ticket", "Test Description", models.TicketStatusOpen, models.TicketPriorityMedium,
+			nil, models.TicketTypeIncident, models.TicketSourceManual, "user-1", "user-2",
+			string(tagsJSON), string(customFieldsJSON), nil, nil,
+			nil, nil, time.Now(), time.Now(),
 		))
 
 	result, err := repo.List(context.Background(), filter)
@@ -243,7 +243,7 @@ func TestTicketRepository_UpdateStatus(t *testing.T) {
 	status := models.TicketStatusResolved
 
 	mock.ExpectExec(`UPDATE tickets SET status`).
-		WithArgs(status, sqlmock.AnyArg(), sqlmock.AnyArg(), ticketID).
+		WithArgs(status, sqlmock.AnyArg(), ticketID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = repo.UpdateStatus(context.Background(), ticketID, status)
@@ -260,13 +260,13 @@ func TestTicketRepository_Close(t *testing.T) {
 	repo := NewTicketRepository(sqlxDB)
 
 	ticketID := "ticket-1"
-	resolution := "Fixed the issue"
+	closerID := "user-1"
 
 	mock.ExpectExec(`UPDATE tickets SET status`).
-		WithArgs(models.TicketStatusClosed, resolution, sqlmock.AnyArg(), sqlmock.AnyArg(), ticketID).
+		WithArgs(models.TicketStatusClosed, sqlmock.AnyArg(), closerID, ticketID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = repo.Close(context.Background(), ticketID, resolution)
+	err = repo.Close(context.Background(), ticketID, closerID)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -280,13 +280,13 @@ func TestTicketRepository_Reopen(t *testing.T) {
 	repo := NewTicketRepository(sqlxDB)
 
 	ticketID := "ticket-1"
-	reason := "Issue not fully resolved"
+	reopenerID := "user-1"
 
 	mock.ExpectExec(`UPDATE tickets SET status`).
-		WithArgs(models.TicketStatusOpen, reason, sqlmock.AnyArg(), ticketID).
+		WithArgs(models.TicketStatusOpen, sqlmock.AnyArg(), ticketID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = repo.Reopen(context.Background(), ticketID, reason)
+	err = repo.Reopen(context.Background(), ticketID, reopenerID)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -302,18 +302,23 @@ func TestTicketRepository_AddComment(t *testing.T) {
 	repo := NewTicketRepository(sqlxDB)
 
 	comment := &models.TicketComment{
-		ID:       "comment-1",
-		TicketID: "ticket-1",
-		UserID:   "user-1",
-		Content:  "Test comment",
-		IsPrivate: false,
+		ID:         "comment-1",
+		TicketID:   "ticket-1",
+		AuthorID:   "user-1",
+		Content:    "Test comment",
+		IsInternal: false,
 	}
 
 	mock.ExpectExec(`INSERT INTO ticket_comments`).
 		WithArgs(
-			comment.ID, comment.TicketID, comment.UserID, comment.Content,
-			comment.IsPrivate, sqlmock.AnyArg(),
+			comment.ID, comment.TicketID, comment.AuthorID, comment.Content,
+			comment.IsInternal, sqlmock.AnyArg(), sqlmock.AnyArg(),
 		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Mock the ticket update query
+	mock.ExpectExec(`UPDATE tickets SET updated_at`).
+		WithArgs(sqlmock.AnyArg(), comment.TicketID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = repo.AddComment(context.Background(), comment)
@@ -361,19 +366,20 @@ func TestTicketRepository_AddAttachment(t *testing.T) {
 	repo := NewTicketRepository(sqlxDB)
 
 	attachment := &models.TicketAttachment{
-		ID:       "attachment-1",
-		TicketID: "ticket-1",
-		Filename: "screenshot.png",
-		FileSize: 1024,
-		MimeType: "image/png",
-		FilePath: "/uploads/screenshot.png",
-		UploadBy: "user-1",
+		ID:               "attachment-1",
+		TicketID:         "ticket-1",
+		Filename:         "screenshot.png",
+		OriginalFilename: "original_screenshot.png",
+		FileSize:         1024,
+		MimeType:         "image/png",
+		FilePath:         "/uploads/screenshot.png",
+		UploadBy:         "user-1",
 	}
 
 	mock.ExpectExec(`INSERT INTO ticket_attachments`).
 		WithArgs(
-			attachment.ID, attachment.TicketID, attachment.Filename,
-			attachment.FileSize, attachment.MimeType, attachment.FilePath,
+			attachment.ID, attachment.TicketID, attachment.Filename, attachment.OriginalFilename,
+			attachment.FilePath, attachment.FileSize, attachment.MimeType,
 			attachment.UploadBy, sqlmock.AnyArg(),
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
@@ -398,11 +404,11 @@ func TestTicketRepository_GetAttachments(t *testing.T) {
 	mock.ExpectQuery(`SELECT (.+) FROM ticket_attachments`).
 		WithArgs(ticketID).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "ticket_id", "filename", "file_size", "mime_type",
-			"file_path", "upload_by", "created_at",
+			"id", "ticket_id", "filename", "original_filename", "file_path",
+			"file_size", "mime_type", "upload_by", "created_at",
 		}).AddRow(
-			"attachment-1", ticketID, "screenshot.png", 1024, "image/png",
-			"/uploads/screenshot.png", "user-1", time.Now(),
+			"attachment-1", ticketID, "screenshot.png", "original_screenshot.png", "/uploads/screenshot.png",
+			1024, "image/png", "user-1", time.Now(),
 		))
 
 	attachments, err := repo.GetAttachments(context.Background(), ticketID)
@@ -413,7 +419,7 @@ func TestTicketRepository_GetAttachments(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestTicketRepository_BulkUpdateStatus(t *testing.T) {
+func TestTicketRepository_BatchUpdateStatus(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("创建mock数据库失败: %v", err)
@@ -427,15 +433,15 @@ func TestTicketRepository_BulkUpdateStatus(t *testing.T) {
 	status := models.TicketStatusClosed
 
 	mock.ExpectExec(`UPDATE tickets SET status`).
-		WithArgs(status, sqlmock.AnyArg(), "ticket-1", "ticket-2").
+		WithArgs(string(status), pq.Array(ticketIDs)).
 		WillReturnResult(sqlmock.NewResult(2, 2))
 
-	err = repo.BulkUpdateStatus(context.Background(), ticketIDs, status)
+	err = repo.BatchUpdateStatus(context.Background(), ticketIDs, status)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestTicketRepository_BulkAssign(t *testing.T) {
+func TestTicketRepository_BatchAssign(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("创建mock数据库失败: %v", err)
@@ -449,15 +455,15 @@ func TestTicketRepository_BulkAssign(t *testing.T) {
 	assigneeID := "user-2"
 
 	mock.ExpectExec(`UPDATE tickets SET assignee_id`).
-		WithArgs(assigneeID, sqlmock.AnyArg(), "ticket-1", "ticket-2").
+		WithArgs(assigneeID, pq.Array(ticketIDs)).
 		WillReturnResult(sqlmock.NewResult(2, 2))
 
-	err = repo.BulkAssign(context.Background(), ticketIDs, assigneeID)
+	err = repo.BatchAssign(context.Background(), ticketIDs, assigneeID)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestTicketRepository_GetStatistics(t *testing.T) {
+func TestTicketRepository_GetStats(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("创建mock数据库失败: %v", err)
@@ -467,41 +473,49 @@ func TestTicketRepository_GetStatistics(t *testing.T) {
 	sqlxDB := sqlx.NewDb(db, "postgres")
 	repo := NewTicketRepository(sqlxDB)
 
-	filter := &models.TicketFilter{
-		TeamID: stringPtr("team-1"),
-	}
+	filter := &models.TicketFilter{}
 
-	mock.ExpectQuery(`SELECT status, COUNT`).
-		WithArgs("team-1").
+	// Mock status query
+	mock.ExpectQuery(`SELECT status, COUNT\(\*\) FROM tickets`).
 		WillReturnRows(sqlmock.NewRows([]string{"status", "count"}).
-			AddRow(models.TicketStatusOpen, 5).
-			AddRow(models.TicketStatusInProgress, 3).
-			AddRow(models.TicketStatusClosed, 10))
+			AddRow("open", 5).
+			AddRow("closed", 3))
 
-	mock.ExpectQuery(`SELECT priority, COUNT`).
-		WithArgs("team-1").
+	// Mock priority query
+	mock.ExpectQuery(`SELECT priority, COUNT\(\*\) FROM tickets`).
 		WillReturnRows(sqlmock.NewRows([]string{"priority", "count"}).
-			AddRow(models.TicketPriorityHigh, 2).
-			AddRow(models.TicketPriorityMedium, 8).
-			AddRow(models.TicketPriorityLow, 8))
+			AddRow("high", 2).
+			AddRow("medium", 4).
+			AddRow("low", 2))
 
-	mock.ExpectQuery(`SELECT type, COUNT`).
-		WithArgs("team-1").
-		WillReturnRows(sqlmock.NewRows([]string{"type", "count"}).
-			AddRow(models.TicketTypeIncident, 12).
-			AddRow(models.TicketTypeRequest, 6))
+	// Mock unassigned count query
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM tickets WHERE assignee_id IS NULL`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
 
-	stats, err := repo.GetStatistics(context.Background(), filter)
+	// Mock overdue count query
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM tickets WHERE due_date < \$1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	// Mock due soon count query
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM tickets WHERE due_date BETWEEN \$1 AND \$2`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+
+	stats, err := repo.GetStats(context.Background(), filter)
 	assert.NoError(t, err)
 	assert.NotNil(t, stats)
-	assert.Equal(t, int64(18), stats.Total)
-	assert.Equal(t, int64(5), stats.ByStatus[models.TicketStatusOpen])
-	assert.Equal(t, int64(2), stats.ByPriority[models.TicketPriorityHigh])
-	assert.Equal(t, int64(12), stats.ByType[models.TicketTypeIncident])
+	assert.Equal(t, int64(8), stats.Total) // 5 + 3
+	assert.Equal(t, int64(5), stats.ByStatus["open"])
+	assert.Equal(t, int64(3), stats.ByStatus["closed"])
+	assert.Equal(t, int64(2), stats.ByPriority["high"])
+	assert.Equal(t, int64(3), stats.Unassigned)
+	assert.Equal(t, int64(1), stats.Overdue)
+	assert.Equal(t, int64(2), stats.DueSoon)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestTicketRepository_GetSLAStatus(t *testing.T) {
+func TestTicketRepository_GetSLA(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("创建mock数据库失败: %v", err)
@@ -513,19 +527,22 @@ func TestTicketRepository_GetSLAStatus(t *testing.T) {
 
 	ticketID := "ticket-1"
 
-	mock.ExpectQuery(`SELECT (.+) FROM tickets`).
+	mock.ExpectQuery(`SELECT (.+) FROM ticket_slas`).
 		WithArgs(ticketID).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"priority", "created_at", "resolved_at", "sla_breach_at",
+			"id", "name", "description", "type", "priority", "severity",
+			"response_time", "resolution_time", "escalation_rules", "business_hours",
+			"holidays", "enabled", "created_by", "updated_by", "created_at", "updated_at",
 		}).AddRow(
-			models.TicketPriorityHigh, time.Now().Add(-2*time.Hour), nil, nil,
+			"sla-1", "High Priority SLA", "SLA for high priority tickets", "incident",
+			models.TicketPriorityHigh, models.TicketSeverityMajor, 30*time.Minute, 4*time.Hour,
+			"{}", "{}", "[]", true, "admin", "admin", time.Now(), time.Now(),
 		))
 
-	slaStatus, err := repo.GetSLAStatus(context.Background(), ticketID)
+	slaStatus, err := repo.GetSLA(context.Background(), ticketID)
 	assert.NoError(t, err)
 	assert.NotNil(t, slaStatus)
-	assert.Equal(t, models.TicketPriorityHigh, slaStatus.Priority)
-	assert.False(t, slaStatus.IsBreached)
+	assert.Equal(t, models.TicketPriorityHigh, *slaStatus.Priority)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -540,14 +557,24 @@ func TestTicketRepository_UpdateSLA(t *testing.T) {
 	repo := NewTicketRepository(sqlxDB)
 
 	ticketID := "ticket-1"
-	dueDate := time.Now().Add(24 * time.Hour)
-	slaBreachAt := time.Now().Add(48 * time.Hour)
+	responseTime := 30 * time.Minute
+	resolutionTime := 120 * time.Minute
+	priority := models.TicketPriorityHigh
+	sla := &models.TicketSLA{
+		ID:             "sla-1",
+		Name:           "Test SLA",
+		ResponseTime:   &responseTime,
+		ResolutionTime: &resolutionTime,
+		Priority:       &priority,
+		Enabled:        true,
+		CreatedBy:      "admin",
+	}
 
-	mock.ExpectExec(`UPDATE tickets SET due_date`).
-		WithArgs(dueDate, slaBreachAt, sqlmock.AnyArg(), ticketID).
+	mock.ExpectExec(`UPDATE tickets SET`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), ticketID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = repo.UpdateSLA(context.Background(), ticketID, dueDate, slaBreachAt)
+	err = repo.UpdateSLA(context.Background(), ticketID, sla)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -567,11 +594,11 @@ func TestTicketRepository_GetHistory(t *testing.T) {
 	mock.ExpectQuery(`SELECT (.+) FROM ticket_history`).
 		WithArgs(ticketID).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "ticket_id", "action", "field_name", "old_value",
-			"new_value", "changed_by", "created_at",
+			"id", "ticket_id", "action", "field", "old_value",
+			"new_value", "changes", "user_id", "user_name", "comment", "created_at",
 		}).AddRow(
 			"history-1", ticketID, "status_change", "status",
-			"open", "in_progress", "user-1", time.Now(),
+			"open", "in_progress", "{}", "user-1", "Test User", "Status changed", time.Now(),
 		))
 
 	history, err := repo.GetHistory(context.Background(), ticketID)
@@ -594,19 +621,22 @@ func TestTicketRepository_AddHistory(t *testing.T) {
 	repo := NewTicketRepository(sqlxDB)
 
 	history := &models.TicketHistory{
-		ID:        "history-1",
-		TicketID:  "ticket-1",
-		Action:    "status_change",
-		FieldName: stringPtr("status"),
-		OldValue:  stringPtr("open"),
-		NewValue:  stringPtr("in_progress"),
-		ChangedBy: "user-1",
+		ID:       "history-1",
+		TicketID: "ticket-1",
+		Action:   "status_change",
+		Field:    stringPtr("status"),
+		OldValue: stringPtr("open"),
+		NewValue: stringPtr("in_progress"),
+		UserID:   "user-1",
+		UserName: "Test User",
+		Comment:  stringPtr("Status changed"),
 	}
 
 	mock.ExpectExec(`INSERT INTO ticket_history`).
 		WithArgs(
-			history.ID, history.TicketID, history.Action, history.FieldName,
-			history.OldValue, history.NewValue, history.ChangedBy, sqlmock.AnyArg(),
+			history.ID, history.TicketID, history.Action, history.Field,
+			history.OldValue, history.NewValue, sqlmock.AnyArg(), // changes JSON
+			history.UserID, history.UserName, history.Comment, sqlmock.AnyArg(), // created_at
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 

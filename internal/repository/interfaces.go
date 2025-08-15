@@ -250,6 +250,7 @@ type KnowledgeRepository interface {
 	Search(ctx context.Context, query string, filter *models.KnowledgeFilter) (*models.KnowledgeSearchResult, error)
 	
 	// 知识状态管理
+	UpdateStatus(ctx context.Context, id string, status models.KnowledgeStatus) error
 	Publish(ctx context.Context, id, publisherID string) error
 	Unpublish(ctx context.Context, id string) error
 	Archive(ctx context.Context, id string) error

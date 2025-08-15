@@ -42,7 +42,7 @@ func (r *knowledgeRepository) getExecutor() sqlx.ExtContext {
 }
 
 // Create 创建知识库文章
-func (r *knowledgeRepository) Create(ctx context.Context, article *models.KnowledgeArticle) error {
+func (r *knowledgeRepository) Create(ctx context.Context, article *models.Knowledge) error {
 	if article.ID == "" {
 		article.ID = uuid.New().String()
 	}
@@ -73,32 +73,15 @@ func (r *knowledgeRepository) Create(ctx context.Context, article *models.Knowle
 			author_id, reviewer_id, tags, metadata, version, view_count, like_count,
 			is_featured, visibility, created_at, updated_at
 		) VALUES (
-			:id, :title, :content, :summary, :category_id, :status, :type, :language,
-			:author_id, :reviewer_id, :tags, :metadata, :version, :view_count, :like_count,
-			:is_featured, :visibility, :created_at, :updated_at
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
 		)`
 
-	_, err = sqlx.NamedExecContext(ctx, r.db, query, map[string]interface{}{
-		"id":          article.ID,
-		"title":       article.Title,
-		"content":     article.Content,
-		"summary":     article.Summary,
-		"category_id": article.CategoryID,
-		"status":      article.Status,
-		"type":        article.Type,
-		"language":    article.Language,
-		"author_id":   article.AuthorID,
-		"reviewer_id": article.ReviewerID,
-		"tags":        string(tagsJSON),
-		"metadata":    string(metadataJSON),
-		"version":     article.Version,
-		"view_count":  article.ViewCount,
-		"like_count":  article.LikeCount,
-		"is_featured": article.IsFeatured,
-		"visibility":  article.Visibility,
-		"created_at":  article.CreatedAt,
-		"updated_at":  article.UpdatedAt,
-	})
+	_, err = r.getExecutor().ExecContext(ctx, query,
+		article.ID, article.Title, article.Content, article.Summary, article.CategoryID,
+		article.Status, article.Type, article.Language, article.AuthorID, article.ReviewerID,
+		string(tagsJSON), string(metadataJSON), article.Version, article.ViewCount, article.LikeCount,
+		article.IsFeatured, article.Visibility, article.CreatedAt, article.UpdatedAt,
+	)
 
 	if err != nil {
 		return fmt.Errorf("创建知识库文章失败: %w", err)
@@ -111,7 +94,7 @@ func (r *knowledgeRepository) Create(ctx context.Context, article *models.Knowle
 func (r *knowledgeRepository) Unarchive(ctx context.Context, id string) error {
 	// 检查知识库是否存在且为归档状态
 	var currentStatus models.KnowledgeStatus
-	query := `SELECT status FROM knowledge WHERE id = $1 AND deleted_at IS NULL`
+	query := `SELECT status FROM knowledge_articles WHERE id = $1 AND deleted_at IS NULL`
 	err := r.getExecutor().QueryRowxContext(ctx, query, id).Scan(&currentStatus)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -229,7 +212,7 @@ func (r *knowledgeRepository) GetBySlug(ctx context.Context, slug string) (*mode
 }
 
 // Update 更新知识库文章
-func (r *knowledgeRepository) Update(ctx context.Context, article *models.KnowledgeArticle) error {
+func (r *knowledgeRepository) Update(ctx context.Context, article *models.Knowledge) error {
 	article.UpdatedAt = time.Now()
 	// 版本号递增（字符串类型）
 	if article.Version == "" {
@@ -256,44 +239,54 @@ func (r *knowledgeRepository) Update(ctx context.Context, article *models.Knowle
 
 	query := `
 		UPDATE knowledge_articles SET 
-			title = :title,
-			content = :content,
-			summary = :summary,
-			category_id = :category_id,
-			status = :status,
-			type = :type,
-			language = :language,
-			reviewer_id = :reviewer_id,
-			tags = :tags,
-			metadata = :metadata,
-			version = :version,
-			is_featured = :is_featured,
-			visibility = :visibility,
-			published_at = :published_at,
-			updated_at = :updated_at
-		WHERE id = :id AND deleted_at IS NULL`
+			title = $1,
+			content = $2,
+			summary = $3,
+			category_id = $4,
+			status = $5,
+			type = $6,
+			language = $7,
+			reviewer_id = $8,
+			tags = $9,
+			metadata = $10,
+			version = $11,
+			is_featured = $12,
+			visibility = $13,
+			published_at = $14,
+			updated_at = $15
+		WHERE id = $16 AND deleted_at IS NULL`
 
-	_, err = sqlx.NamedExecContext(ctx, r.getExecutor(), query, map[string]interface{}{
-		"id":           article.ID,
-		"title":        article.Title,
-		"content":      article.Content,
-		"summary":      article.Summary,
-		"category_id":  article.CategoryID,
-		"status":       article.Status,
-		"type":         article.Type,
-		"language":     article.Language,
-		"reviewer_id":  article.ReviewerID,
-		"tags":         string(tagsJSON),
-		"metadata":     string(metadataJSON),
-		"version":      article.Version,
-		"is_featured":  article.IsFeatured,
-		"visibility":   article.Visibility,
-		"published_at": article.PublishedAt,
-		"updated_at":   article.UpdatedAt,
-	})
+	result, err := r.getExecutor().ExecContext(ctx, query,
+		article.Title,
+		article.Content,
+		article.Summary,
+		article.CategoryID,
+		article.Status,
+		article.Type,
+		article.Language,
+		article.ReviewerID,
+		string(tagsJSON),
+		string(metadataJSON),
+		article.Version,
+		article.IsFeatured,
+		article.Visibility,
+		article.PublishedAt,
+		article.UpdatedAt,
+		article.ID,
+	)
 
 	if err != nil {
 		return fmt.Errorf("更新知识库文章失败: %w", err)
+	}
+
+	// 检查是否有行被更新
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("获取更新行数失败: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("知识库文章不存在")
 	}
 
 	return nil
@@ -535,13 +528,13 @@ func (r *knowledgeRepository) Count(ctx context.Context, filter *models.Knowledg
 
 // Exists 检查知识库文章是否存在
 func (r *knowledgeRepository) Exists(ctx context.Context, id string) (bool, error) {
-	var count int
-	query := `SELECT COUNT(*) FROM knowledge_articles WHERE id = $1 AND deleted_at IS NULL`
-	err := sqlx.GetContext(ctx, r.db, &count, query, id)
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM knowledge_articles WHERE id = $1 AND deleted_at IS NULL)`
+	err := sqlx.GetContext(ctx, r.db, &exists, query, id)
 	if err != nil {
 		return false, fmt.Errorf("检查知识库文章是否存在失败: %w", err)
 	}
-	return count > 0, nil
+	return exists, nil
 }
 
 // ExistsBySlug 检查Slug是否存在
@@ -1044,7 +1037,7 @@ func (r *knowledgeRepository) GetPopular(ctx context.Context, limit int) ([]*mod
 		       download_count, rating, rating_count, is_featured, is_template, 
 		       template_data, metadata, related_ids, expires_at, 
 		       created_at, updated_at, published_at, last_viewed_at
-		FROM knowledge 
+		FROM knowledge_articles 
 		WHERE deleted_at IS NULL AND status = $1
 		ORDER BY view_count DESC, like_count DESC, created_at DESC
 		LIMIT $2`
@@ -1132,7 +1125,7 @@ func (r *knowledgeRepository) GetRecent(ctx context.Context, limit int) ([]*mode
 		       download_count, rating, rating_count, is_featured, is_template, 
 		       template_data, metadata, related_ids, expires_at, 
 		       created_at, updated_at, published_at, last_viewed_at
-		FROM knowledge 
+		FROM knowledge_articles 
 		WHERE deleted_at IS NULL AND status = $1
 		ORDER BY created_at DESC, updated_at DESC
 		LIMIT $2`
@@ -1216,14 +1209,14 @@ func (r *knowledgeRepository) GetRelated(ctx context.Context, knowledgeID string
 		       0 as download_count, NULL as rating, 0 as rating_count, k.is_featured, k.is_template, 
 		       k.template_data, k.metadata, k.related_ids, k.expires_at, 
 		       k.created_at, k.updated_at, k.published_at, NULL as last_viewed_at
-		FROM knowledge k
+		FROM knowledge_articles k
 		WHERE k.deleted_at IS NULL 
 		  AND k.status = $1 
 		  AND k.id != $2
 		  AND (
-			  k.category_id = (SELECT category_id FROM knowledge WHERE id = $2)
-			  OR k.tags && (SELECT tags FROM knowledge WHERE id = $2)
-			  OR k.keywords && (SELECT keywords FROM knowledge WHERE id = $2)
+			  k.category_id = (SELECT category_id FROM knowledge_articles WHERE id = $2)
+			  OR k.tags && (SELECT tags FROM knowledge_articles WHERE id = $2)
+			  OR k.keywords && (SELECT keywords FROM knowledge_articles WHERE id = $2)
 		  )
 		ORDER BY k.view_count DESC, k.like_count DESC, k.created_at DESC
 		LIMIT $3`
@@ -1342,8 +1335,9 @@ func (r *knowledgeRepository) GetAttachments(ctx context.Context, articleID stri
 	var attachments []*models.KnowledgeAttachment
 	for rows.Next() {
 		var attachment models.KnowledgeAttachment
+		var originalFileName string
 		err := rows.Scan(
-			&attachment.ID, &attachment.KnowledgeID, &attachment.FileName,
+			&attachment.ID, &attachment.KnowledgeID, &attachment.FileName, &originalFileName,
 			&attachment.FilePath, &attachment.FileSize, &attachment.MimeType, &attachment.UploadBy, &attachment.CreatedAt,
 		)
 		if err != nil {
@@ -1379,25 +1373,25 @@ func (r *knowledgeRepository) GetMetrics(ctx context.Context, period string) (*m
 	metrics := &models.KnowledgeMetrics{}
 
 	// 获取总浏览数
-	err := sqlx.GetContext(ctx, r.db, &metrics.ViewCount, "SELECT COALESCE(SUM(view_count), 0) FROM knowledge WHERE deleted_at IS NULL")
+	err := sqlx.GetContext(ctx, r.db, &metrics.ViewCount, "SELECT COALESCE(SUM(view_count), 0) FROM knowledge_articles WHERE deleted_at IS NULL")
 	if err != nil {
 		return nil, fmt.Errorf("获取总浏览数失败: %w", err)
 	}
 
 	// 获取总点赞数
-	err = sqlx.GetContext(ctx, r.db, &metrics.LikeCount, "SELECT COALESCE(SUM(like_count), 0) FROM knowledge WHERE deleted_at IS NULL")
+	err = sqlx.GetContext(ctx, r.db, &metrics.LikeCount, "SELECT COALESCE(SUM(like_count), 0) FROM knowledge_articles WHERE deleted_at IS NULL")
 	if err != nil {
 		return nil, fmt.Errorf("获取总点赞数失败: %w", err)
 	}
 
 	// 获取总评分
-	err = sqlx.GetContext(ctx, r.db, &metrics.Rating, "SELECT COALESCE(AVG(rating), 0) FROM knowledge WHERE deleted_at IS NULL AND rating > 0")
+	err = sqlx.GetContext(ctx, r.db, &metrics.Rating, "SELECT COALESCE(AVG(rating), 0) FROM knowledge_articles WHERE deleted_at IS NULL AND rating > 0")
 	if err != nil {
 		return nil, fmt.Errorf("获取平均评分失败: %w", err)
 	}
 
 	// 获取评分数量
-	err = sqlx.GetContext(ctx, r.db, &metrics.RatingCount, "SELECT COUNT(*) FROM knowledge WHERE deleted_at IS NULL AND rating > 0")
+	err = sqlx.GetContext(ctx, r.db, &metrics.RatingCount, "SELECT COUNT(*) FROM knowledge_articles WHERE deleted_at IS NULL AND rating > 0")
 	if err != nil {
 		return nil, fmt.Errorf("获取评分数量失败: %w", err)
 	}
@@ -1417,7 +1411,7 @@ func (r *knowledgeRepository) GetStats(ctx context.Context, filter *models.Knowl
 	// 按状态统计
 	statusQuery := `
 		SELECT status, COUNT(*) 
-		FROM knowledge 
+		FROM knowledge_articles 
 		WHERE deleted_at IS NULL 
 		GROUP BY status`
 
@@ -1446,7 +1440,7 @@ func (r *knowledgeRepository) GetStats(ctx context.Context, filter *models.Knowl
 	// 按类型统计
 	typeQuery := `
 		SELECT type, COUNT(*) 
-		FROM knowledge 
+		FROM knowledge_articles 
 		WHERE deleted_at IS NULL 
 		GROUP BY type`
 
@@ -1467,22 +1461,22 @@ func (r *knowledgeRepository) GetStats(ctx context.Context, filter *models.Knowl
 	}
 
 	// 获取其他统计信息
-	err = r.getExecutor().QueryRowxContext(ctx, "SELECT COALESCE(SUM(view_count), 0) FROM knowledge WHERE deleted_at IS NULL").Scan(&stats.TotalViews)
+	err = r.getExecutor().QueryRowxContext(ctx, "SELECT COALESCE(SUM(view_count), 0) FROM knowledge_articles WHERE deleted_at IS NULL").Scan(&stats.TotalViews)
 	if err != nil {
 		return nil, fmt.Errorf("获取总浏览数失败: %w", err)
 	}
 
-	err = r.getExecutor().QueryRowxContext(ctx, "SELECT COALESCE(SUM(like_count), 0) FROM knowledge WHERE deleted_at IS NULL").Scan(&stats.TotalLikes)
+	err = r.getExecutor().QueryRowxContext(ctx, "SELECT COALESCE(SUM(like_count), 0) FROM knowledge_articles WHERE deleted_at IS NULL").Scan(&stats.TotalLikes)
 	if err != nil {
 		return nil, fmt.Errorf("获取总点赞数失败: %w", err)
 	}
 
-	err = r.getExecutor().QueryRowxContext(ctx, "SELECT COUNT(*) FROM knowledge WHERE deleted_at IS NULL AND is_featured = true").Scan(&stats.FeaturedCount)
+	err = r.getExecutor().QueryRowxContext(ctx, "SELECT COUNT(*) FROM knowledge_articles WHERE deleted_at IS NULL AND is_featured = true").Scan(&stats.FeaturedCount)
 	if err != nil {
 		return nil, fmt.Errorf("获取推荐数失败: %w", err)
 	}
 
-	err = r.getExecutor().QueryRowxContext(ctx, "SELECT COALESCE(AVG(CASE WHEN rating IS NOT NULL THEN rating ELSE 0 END), 0) FROM knowledge WHERE deleted_at IS NULL").Scan(&stats.AvgRating)
+	err = r.getExecutor().QueryRowxContext(ctx, "SELECT COALESCE(AVG(CASE WHEN rating IS NOT NULL THEN rating ELSE 0 END), 0) FROM knowledge_articles WHERE deleted_at IS NULL").Scan(&stats.AvgRating)
 	if err != nil {
 		return nil, fmt.Errorf("获取平均评分失败: %w", err)
 	}
@@ -1491,7 +1485,7 @@ func (r *knowledgeRepository) GetStats(ctx context.Context, filter *models.Knowl
 }
 
 // BatchCreate 批量创建文章
-func (r *knowledgeRepository) BatchCreate(ctx context.Context, articles []*models.KnowledgeArticle) error {
+func (r *knowledgeRepository) BatchCreate(ctx context.Context, articles []*models.Knowledge) error {
 	if len(articles) == 0 {
 		return nil
 	}
@@ -1531,7 +1525,7 @@ func (r *knowledgeRepository) BatchCreate(ctx context.Context, articles []*model
 			INSERT INTO knowledge_articles (
 				id, title, content, summary, category_id, status, type, language,
 				author_id, reviewer_id, tags, metadata, version, view_count, like_count,
-				is_featured, is_public, created_at, updated_at
+				is_featured, visibility, created_at, updated_at
 			) VALUES (
 				$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
 			)`
@@ -1540,7 +1534,7 @@ func (r *knowledgeRepository) BatchCreate(ctx context.Context, articles []*model
 			article.ID, article.Title, article.Content, article.Summary, article.CategoryID,
 			article.Status, article.Type, article.Language, article.AuthorID, article.ReviewerID,
 			string(tagsJSON), string(metadataJSON), article.Version, article.ViewCount, article.LikeCount,
-			article.IsFeatured, article.IsPublic, article.CreatedAt, article.UpdatedAt,
+			article.IsFeatured, article.Visibility, article.CreatedAt, article.UpdatedAt,
 		)
 		if err != nil {
 			return fmt.Errorf("批量创建文章失败: %w", err)
@@ -1551,7 +1545,7 @@ func (r *knowledgeRepository) BatchCreate(ctx context.Context, articles []*model
 }
 
 // BatchUpdate 批量更新文章
-func (r *knowledgeRepository) BatchUpdate(ctx context.Context, articles []*models.KnowledgeArticle) error {
+func (r *knowledgeRepository) BatchUpdate(ctx context.Context, articles []*models.Knowledge) error {
 	if len(articles) == 0 {
 		return nil
 	}
@@ -1601,7 +1595,7 @@ func (r *knowledgeRepository) BatchUpdate(ctx context.Context, articles []*model
 				metadata = $10,
 				version = $11,
 				is_featured = $12,
-				is_public = $13,
+				visibility = $13,
 				updated_at = $14
 			WHERE id = $15 AND deleted_at IS NULL`
 
@@ -1609,7 +1603,7 @@ func (r *knowledgeRepository) BatchUpdate(ctx context.Context, articles []*model
 			article.Title, article.Content, article.Summary, article.CategoryID,
 			article.Status, article.Type, article.Language, article.ReviewerID,
 			string(tagsJSON), string(metadataJSON), article.Version,
-			article.IsFeatured, article.IsPublic, article.UpdatedAt, article.ID,
+			article.IsFeatured, article.Visibility, article.UpdatedAt, article.ID,
 		)
 		if err != nil {
 			return fmt.Errorf("批量更新文章失败: %w", err)
@@ -1711,7 +1705,7 @@ func (r *knowledgeRepository) BatchPublish(ctx context.Context, ids []string, pu
 // CleanupDrafts 清理指定时间之前的草稿
 func (r *knowledgeRepository) CleanupDrafts(ctx context.Context, before time.Time) (int64, error) {
 	query := `
-		DELETE FROM knowledge 
+		DELETE FROM knowledge_articles 
 		WHERE status = $1 AND created_at < $2
 	`
 	
@@ -1731,7 +1725,7 @@ func (r *knowledgeRepository) CleanupDrafts(ctx context.Context, before time.Tim
 // CleanupExpired 清理过期的知识库文章
 func (r *knowledgeRepository) CleanupExpired(ctx context.Context) (int64, error) {
 	query := `
-		UPDATE knowledge 
+		UPDATE knowledge_articles 
 		SET status = $1, updated_at = CURRENT_TIMESTAMP
 		WHERE status = $2 AND expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP
 	`
@@ -2077,7 +2071,7 @@ func (r *knowledgeRepository) Search(ctx context.Context, query string, filter *
 		SELECT id, title, slug, summary, content, status, category_id, author_id,
 		       view_count, like_count, dislike_count, share_count, download_count,
 		       rating, rating_count, featured, created_at, updated_at, published_at
-		FROM knowledge
+		FROM knowledge_articles
 		WHERE ` + strings.Join(conditions, " AND ")
 	
 	// 排序
@@ -2139,7 +2133,7 @@ func (r *knowledgeRepository) Search(ctx context.Context, query string, filter *
 	}
 	
 	// 获取总数
-	countQuery := "SELECT COUNT(*) FROM knowledge WHERE " + strings.Join(conditions, " AND ")
+	countQuery := "SELECT COUNT(*) FROM knowledge_articles WHERE " + strings.Join(conditions, " AND ")
 	var total int64
 	err = r.getExecutor().QueryRowxContext(ctx, countQuery, args[:len(args)-2]...).Scan(&total)
 	if err != nil {
@@ -2167,7 +2161,7 @@ func (r *knowledgeRepository) Search(ctx context.Context, query string, filter *
 func (r *knowledgeRepository) SubmitForReview(ctx context.Context, id string) error {
 	// 检查知识库是否存在且为草稿状态
 	var currentStatus models.KnowledgeStatus
-	query := `SELECT status FROM knowledge WHERE id = $1 AND deleted_at IS NULL`
+	query := `SELECT status FROM knowledge_articles WHERE id = $1 AND deleted_at IS NULL`
 	err := r.getExecutor().QueryRowxContext(ctx, query, id).Scan(&currentStatus)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -2183,7 +2177,7 @@ func (r *knowledgeRepository) SubmitForReview(ctx context.Context, id string) er
 	
 	// 更新状态为审核中
 	updateQuery := `
-		UPDATE knowledge 
+		UPDATE knowledge_articles 
 		SET status = $1, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $2 AND deleted_at IS NULL`
 	

@@ -41,14 +41,14 @@ func TestKnowledgeRepository_Create(t *testing.T) {
 		Metadata:   map[string]interface{}{"key": "value"},
 	}
 
-	// Mock INSERT query
-	mock.ExpectExec(`INSERT INTO knowledge`).WithArgs(
+	// Mock INSERT query - 匹配实际Create方法的19个字段
+	mock.ExpectExec(`INSERT INTO knowledge_articles`).WithArgs(
 		knowledge.ID, knowledge.Title, knowledge.Content, knowledge.Summary,
-		knowledge.Type, knowledge.Status, knowledge.Visibility, knowledge.Format,
-		knowledge.CategoryID, knowledge.AuthorID, knowledge.Language,
-		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), // tags, keywords, metadata JSON
-		knowledge.ViewCount, knowledge.LikeCount, knowledge.IsFeatured,
-		knowledge.IsTemplate, sqlmock.AnyArg(), // template_data JSON
+		knowledge.CategoryID, knowledge.Status, knowledge.Type, knowledge.Language,
+		knowledge.AuthorID, knowledge.ReviewerID,
+		sqlmock.AnyArg(), sqlmock.AnyArg(), // tags, metadata JSON
+		"1", knowledge.ViewCount, knowledge.LikeCount, // version is set to "1" by Create method
+		knowledge.IsFeatured, knowledge.Visibility,
 		sqlmock.AnyArg(), sqlmock.AnyArg(), // created_at, updated_at
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -110,7 +110,7 @@ func TestKnowledgeRepository_GetByID_NotFound(t *testing.T) {
 	knowledge, err := repo.GetByID(context.Background(), knowledgeID)
 	assert.Error(t, err)
 	assert.Nil(t, knowledge)
-	assert.Contains(t, err.Error(), "知识不存在")
+	assert.Contains(t, err.Error(), "知识库文章不存在")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -139,10 +139,10 @@ func TestKnowledgeRepository_Update(t *testing.T) {
 	}
 
 	mock.ExpectExec(`UPDATE knowledge_articles SET`).WithArgs(
-		knowledge.Title, knowledge.Content, knowledge.Summary, knowledge.Type,
-		knowledge.Status, knowledge.Visibility, knowledge.Format, knowledge.CategoryID,
-		knowledge.Language, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), // tags, keywords, metadata JSON
-		knowledge.IsFeatured, knowledge.IsTemplate, sqlmock.AnyArg(), // template_data JSON
+		knowledge.Title, knowledge.Content, knowledge.Summary, knowledge.CategoryID,
+		knowledge.Status, knowledge.Type, knowledge.Language, knowledge.ReviewerID,
+		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), // tags, metadata, version
+		knowledge.IsFeatured, knowledge.Visibility, sqlmock.AnyArg(), // published_at
 		sqlmock.AnyArg(), knowledge.ID, // updated_at, id
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -209,15 +209,15 @@ func TestKnowledgeRepository_List(t *testing.T) {
 	rows := sqlmock.NewRows([]string{
 		"id", "title", "content", "summary", "category_id", "status", "type", "language",
 		"author_id", "reviewer_id", "tags", "metadata", "version", "view_count", "like_count",
-		"is_featured", "visibility", "created_at", "updated_at", "published_at", "reviewed_at",
+		"is_featured", "visibility", "created_at", "updated_at", "published_at",
 	}).AddRow(
 		"id-1", "知识1", "内容1", "摘要1", "category-1", models.KnowledgeStatusPublished,
 		models.KnowledgeTypeArticle, "zh-CN", "author-1", nil, "[]", "{}", "1.0",
-		100, 10, true, models.KnowledgeVisibilityPublic, time.Now(), time.Now(), nil, nil,
+		100, 10, true, models.KnowledgeVisibilityPublic, time.Now(), time.Now(), time.Now(),
 	).AddRow(
 		"id-2", "知识2", "内容2", "摘要2", "category-2", models.KnowledgeStatusPublished,
 		models.KnowledgeTypeArticle, "zh-CN", "author-2", nil, "[]", "{}", "1.0",
-		200, 20, false, models.KnowledgeVisibilityPublic, time.Now(), time.Now(), nil, nil,
+		200, 20, false, models.KnowledgeVisibilityPublic, time.Now(), time.Now(), time.Now(),
 	)
 
 	mock.ExpectQuery(`SELECT .+ FROM knowledge_articles WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT \$1 OFFSET \$2`).WithArgs(
@@ -283,15 +283,33 @@ func TestKnowledgeRepository_UpdateStatus(t *testing.T) {
 	repo := NewKnowledgeRepository(sqlxDB)
 
 	knowledgeID := uuid.New().String()
-	status := models.KnowledgeStatusPublished
+	status := models.KnowledgeStatusDraft
 
+	// 测试非发布状态的更新
 	mock.ExpectExec(`UPDATE knowledge_articles SET status = \$1, updated_at = \$2 WHERE id = \$3 AND deleted_at IS NULL`).WithArgs(
 		status, sqlmock.AnyArg(), knowledgeID,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = repo.Publish(context.Background(), knowledgeID, "user-1")
+	err = repo.UpdateStatus(context.Background(), knowledgeID, status)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
+
+	// 测试发布状态的更新
+	db2, mock2, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db2.Close()
+
+	sqlxDB2 := sqlx.NewDb(db2, "postgres")
+	repo2 := NewKnowledgeRepository(sqlxDB2)
+
+	publishedStatus := models.KnowledgeStatusPublished
+	mock2.ExpectExec(`UPDATE knowledge_articles SET status = \$1, published_at = \$2, updated_at = \$2 WHERE id = \$3 AND deleted_at IS NULL`).WithArgs(
+		publishedStatus, sqlmock.AnyArg(), knowledgeID,
+	).WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = repo2.UpdateStatus(context.Background(), knowledgeID, publishedStatus)
+	assert.NoError(t, err)
+	assert.NoError(t, mock2.ExpectationsWereMet())
 }
 
 func TestKnowledgeRepository_Approve(t *testing.T) {
@@ -562,12 +580,12 @@ func TestKnowledgeRepository_GetAttachments(t *testing.T) {
 	knowledgeID := uuid.New().String()
 
 	rows := sqlmock.NewRows([]string{
-		"id", "knowledge_id", "filename", "original_filename", "file_path", "file_size", "mime_type", "uploaded_by", "created_at",
+		"id", "article_id", "filename", "original_filename", "file_path", "file_size", "mime_type", "uploaded_by", "created_at",
 	}).AddRow(
-		"att-1", knowledgeID, "test.pdf", "original.pdf", "/uploads/test.pdf", 1024, "application/pdf", "user-1", time.Now(),
+		"att-1", knowledgeID, "test.pdf", "original.pdf", "/uploads/test.pdf", int64(1024), "application/pdf", "user-1", time.Now(),
 	)
 
-	mock.ExpectQuery(`SELECT .+ FROM knowledge_attachments WHERE knowledge_id = \$1 AND deleted_at IS NULL ORDER BY created_at DESC`).WithArgs(knowledgeID).WillReturnRows(rows)
+	mock.ExpectQuery(`SELECT .+ FROM knowledge_attachments WHERE article_id = \$1 AND deleted_at IS NULL ORDER BY created_at DESC`).WithArgs(knowledgeID).WillReturnRows(rows)
 
 	attachments, err := repo.GetAttachments(context.Background(), knowledgeID)
 	assert.NoError(t, err)
@@ -592,7 +610,7 @@ func TestKnowledgeRepository_GetStats(t *testing.T) {
 	).AddRow(
 		string(models.KnowledgeStatusDraft), 5,
 	)
-	mock.ExpectQuery(`SELECT status, COUNT\(\*\) FROM knowledge WHERE deleted_at IS NULL GROUP BY status`).WillReturnRows(statusRows)
+	mock.ExpectQuery(`SELECT status, COUNT\(\*\) FROM knowledge_articles WHERE deleted_at IS NULL GROUP BY status`).WillReturnRows(statusRows)
 
 	// Mock type stats
 	typeRows := sqlmock.NewRows([]string{"type", "count"}).AddRow(
@@ -600,19 +618,19 @@ func TestKnowledgeRepository_GetStats(t *testing.T) {
 	).AddRow(
 		string(models.KnowledgeTypeReference), 7,
 	)
-	mock.ExpectQuery(`SELECT type, COUNT\(\*\) FROM knowledge WHERE deleted_at IS NULL GROUP BY type`).WillReturnRows(typeRows)
+	mock.ExpectQuery(`SELECT type, COUNT\(\*\) FROM knowledge_articles WHERE deleted_at IS NULL GROUP BY type`).WillReturnRows(typeRows)
 
 	// Mock other stats
-	mock.ExpectQuery(`SELECT COALESCE\(SUM\(view_count\), 0\) FROM knowledge WHERE deleted_at IS NULL`).WillReturnRows(
+	mock.ExpectQuery(`SELECT COALESCE\(SUM\(view_count\), 0\) FROM knowledge_articles WHERE deleted_at IS NULL`).WillReturnRows(
 		sqlmock.NewRows([]string{"sum"}).AddRow(1000),
 	)
-	mock.ExpectQuery(`SELECT COALESCE\(SUM\(like_count\), 0\) FROM knowledge WHERE deleted_at IS NULL`).WillReturnRows(
+	mock.ExpectQuery(`SELECT COALESCE\(SUM\(like_count\), 0\) FROM knowledge_articles WHERE deleted_at IS NULL`).WillReturnRows(
 		sqlmock.NewRows([]string{"sum"}).AddRow(100),
 	)
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM knowledge WHERE deleted_at IS NULL AND is_featured = true`).WillReturnRows(
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM knowledge_articles WHERE deleted_at IS NULL AND is_featured = true`).WillReturnRows(
 		sqlmock.NewRows([]string{"count"}).AddRow(3),
 	)
-	mock.ExpectQuery(`SELECT COALESCE\(AVG\(CASE WHEN rating IS NOT NULL THEN rating ELSE 0 END\), 0\) FROM knowledge WHERE deleted_at IS NULL`).WillReturnRows(
+	mock.ExpectQuery(`SELECT COALESCE\(AVG\(CASE WHEN rating IS NOT NULL THEN rating ELSE 0 END\), 0\) FROM knowledge_articles WHERE deleted_at IS NULL`).WillReturnRows(
 		sqlmock.NewRows([]string{"avg"}).AddRow(4.2),
 	)
 
@@ -662,7 +680,7 @@ func TestKnowledgeRepository_BatchCreate(t *testing.T) {
 
 	mock.ExpectBegin()
 	for range knowledgeList {
-		mock.ExpectExec(`INSERT INTO knowledge`).WithArgs(
+		mock.ExpectExec(`INSERT INTO knowledge_articles`).WithArgs(
 			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
@@ -690,13 +708,12 @@ func TestKnowledgeRepository_BatchDelete(t *testing.T) {
 
 	ids := []string{"id-1", "id-2", "id-3"}
 
-	mock.ExpectBegin()
+	// 不使用事务，直接mock每个SoftDelete调用
 	for _, id := range ids {
-		mock.ExpectExec(`UPDATE knowledge SET deleted_at = \$1, updated_at = \$1 WHERE id = \$2 AND deleted_at IS NULL`).WithArgs(
+		mock.ExpectExec(`UPDATE knowledge_articles SET deleted_at = \$1, updated_at = \$1 WHERE id = \$2 AND deleted_at IS NULL`).WithArgs(
 			sqlmock.AnyArg(), id,
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 	}
-	mock.ExpectCommit()
 
 	// 使用循环调用SoftDelete替代BatchDelete
 	for _, id := range ids {
@@ -716,7 +733,7 @@ func TestKnowledgeRepository_CleanupDrafts(t *testing.T) {
 
 	before := time.Now().AddDate(0, -1, 0) // 1个月前
 
-	mock.ExpectExec(`DELETE FROM knowledge WHERE status = \$1 AND created_at < \$2`).WithArgs(
+	mock.ExpectExec(`DELETE FROM knowledge_articles WHERE status = \$1 AND created_at < \$2`).WithArgs(
 		models.KnowledgeStatusDraft, before,
 	).WillReturnResult(sqlmock.NewResult(0, 5))
 
@@ -751,12 +768,12 @@ func TestKnowledgeRepository_Search(t *testing.T) {
 		time.Now(), time.Now(), time.Now(),
 	)
 
-	mock.ExpectQuery(`SELECT .+ FROM knowledge WHERE deleted_at IS NULL AND \(title ILIKE \$1 OR content ILIKE \$1\) ORDER BY created_at DESC LIMIT \$2 OFFSET \$3`).WithArgs(
+	mock.ExpectQuery(`SELECT .+ FROM knowledge_articles WHERE deleted_at IS NULL AND \(title ILIKE \$1 OR content ILIKE \$1\) ORDER BY created_at DESC LIMIT \$2 OFFSET \$3`).WithArgs(
 		"%测试%", 10, 0,
 	).WillReturnRows(rows)
 
 	// Mock count query
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM knowledge WHERE deleted_at IS NULL AND \(title ILIKE \$1 OR content ILIKE \$1\)`).WithArgs(
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM knowledge_articles WHERE deleted_at IS NULL AND \(title ILIKE \$1 OR content ILIKE \$1\)`).WithArgs(
 		"%测试%",
 	).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
@@ -786,11 +803,11 @@ func TestKnowledgeRepository_ErrorHandling(t *testing.T) {
 			Content: "测试内容",
 		}
 
-		mock.ExpectExec(`INSERT INTO knowledge`).WillReturnError(sql.ErrConnDone)
+		mock.ExpectExec(`INSERT INTO knowledge_articles`).WillReturnError(sql.ErrConnDone)
 
 		err := repo.Create(context.Background(), knowledge)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "创建知识失败")
+		assert.Contains(t, err.Error(), "创建知识库文章失败")
 	})
 
 	t.Run("Update_NotFound", func(t *testing.T) {
@@ -800,11 +817,11 @@ func TestKnowledgeRepository_ErrorHandling(t *testing.T) {
 			Content: "更新的内容",
 		}
 
-		mock.ExpectExec(`UPDATE knowledge SET`).WillReturnResult(sqlmock.NewResult(1, 0))
+		mock.ExpectExec(`UPDATE knowledge_articles SET`).WillReturnResult(sqlmock.NewResult(1, 0))
 
 		err := repo.Update(context.Background(), knowledge)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "知识不存在")
+		assert.Contains(t, err.Error(), "知识库文章不存在")
 	})
 
 	assert.NoError(t, mock.ExpectationsWereMet())

@@ -14,7 +14,7 @@ import (
 	"Pulse/internal/models"
 )
 
-func setupDataSourceRepositoryTest(t *testing.T) (*dataSourceRepository, sqlmock.Sqlmock, func()) {
+func setupDataSourceRepositoryTest(t *testing.T) (DataSourceRepository, sqlmock.Sqlmock, func()) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
@@ -25,7 +25,7 @@ func setupDataSourceRepositoryTest(t *testing.T) (*dataSourceRepository, sqlmock
 		db.Close()
 	}
 
-	return repo.(*dataSourceRepository), mock, cleanup
+	return repo, mock, cleanup
 }
 
 func TestDataSourceRepository_Create(t *testing.T) {
@@ -45,8 +45,10 @@ func TestDataSourceRepository_Create(t *testing.T) {
 		},
 		Tags:              []string{"env:test"},
 		Status:            models.DataSourceStatusActive,
+		Version:           stringPtr("1.0.0"),
 		HealthCheckURL:    stringPtr("http://localhost:9090/api/v1/query"),
 		HealthStatus:      stringPtr(string(models.DataSourceHealthStatusHealthy)),
+		ErrorMessage:      stringPtr(""),
 		CreatedBy:         uuid.New().String(),
 	}
 
@@ -58,9 +60,11 @@ func TestDataSourceRepository_Create(t *testing.T) {
 		sqlmock.AnyArg(), // config JSON
 		sqlmock.AnyArg(), // tags JSON
 		ds.Status,
+		ds.Version,
 		ds.HealthCheckURL,
-		ds.LastHealthCheck,
 		ds.HealthStatus,
+		ds.LastHealthCheck,
+		ds.ErrorMessage,
 		ds.CreatedBy,
 		sqlmock.AnyArg(), // created_at
 		sqlmock.AnyArg(), // updated_at
@@ -88,13 +92,13 @@ func TestDataSourceRepository_GetByID(t *testing.T) {
 	}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "name", "description", "type", "config", "tags", "status",
-		"health_check_url", "last_health_check", "health_status",
+		"id", "name", "description", "type", "config", "tags", "status", "version",
+		"health_check_url", "health_status", "last_health_check", "error_message",
 		"created_by", "created_at", "updated_at",
 	}).AddRow(
 		expectedDS.ID, expectedDS.Name, expectedDS.Description, expectedDS.Type,
-		"{\"url\":\"http://localhost:9090\"}", "[]", expectedDS.Status,
-		(*string)(nil), (*time.Time)(nil), (*string)(nil),
+		"{\"url\":\"http://localhost:9090\"}", "[]", expectedDS.Status, "1.0.0",
+		(*string)(nil), (*string)(nil), (*time.Time)(nil), (*string)(nil),
 		"test-user", time.Now(), time.Now(),
 	)
 
@@ -122,13 +126,13 @@ func TestDataSourceRepository_GetByName(t *testing.T) {
 	}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "name", "description", "type", "config", "tags", "status",
-		"health_check_url", "last_health_check", "health_status",
+		"id", "name", "description", "type", "config", "tags", "status", "version",
+		"health_check_url", "health_status", "last_health_check", "error_message",
 		"created_by", "created_at", "updated_at",
 	}).AddRow(
 		expectedDS.ID, expectedDS.Name, expectedDS.Description, expectedDS.Type,
-		"{\"url\":\"http://localhost:9090\"}", "[]", expectedDS.Status,
-		(*string)(nil), (*time.Time)(nil), (*string)(nil),
+		"{\"url\":\"http://localhost:9090\"}", "[]", expectedDS.Status, "1.0.0",
+		(*string)(nil), (*string)(nil), (*time.Time)(nil), (*string)(nil),
 		"test-user", time.Now(), time.Now(),
 	)
 
@@ -159,7 +163,6 @@ func TestDataSourceRepository_Update(t *testing.T) {
 	}
 
 	mock.ExpectExec(`UPDATE data_sources SET`).WithArgs(
-		ds.ID,
 		ds.Name,
 		ds.Description,
 		ds.Type,
@@ -168,6 +171,7 @@ func TestDataSourceRepository_Update(t *testing.T) {
 		ds.Status,
 		ds.HealthCheckURL,
 		sqlmock.AnyArg(), // updated_at
+		ds.ID, // WHERE条件中的id
 	).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.Update(context.Background(), ds)
@@ -195,8 +199,8 @@ func TestDataSourceRepository_SoftDelete(t *testing.T) {
 
 	dsID := uuid.New().String()
 
-	mock.ExpectExec(`UPDATE data_sources SET deleted_at = \$1, updated_at = \$2 WHERE id = \$3 AND deleted_at IS NULL`).WithArgs(
-		sqlmock.AnyArg(), sqlmock.AnyArg(), dsID,
+	mock.ExpectExec(`UPDATE data_sources SET deleted_at = \$1, updated_at = \$1 WHERE id = \$2 AND deleted_at IS NULL`).WithArgs(
+		sqlmock.AnyArg(), dsID,
 	).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.SoftDelete(context.Background(), dsID)
@@ -340,7 +344,7 @@ func TestDataSourceRepository_GetMetrics(t *testing.T) {
 	metrics, err := repo.GetMetrics(context.Background(), dsID)
 	assert.NoError(t, err)
 	assert.NotNil(t, metrics)
-	assert.Equal(t, int64(10), metrics.ConnectionCount)
+	assert.Equal(t, 10, metrics.ConnectionCount)
 	assert.Equal(t, int64(1000), metrics.QueryCount)
 	assert.Equal(t, int64(5), metrics.ErrorCount)
 	assert.Equal(t, 150.5, metrics.AvgResponseTime)

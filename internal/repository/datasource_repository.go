@@ -70,30 +70,31 @@ func (r *dataSourceRepository) Create(ctx context.Context, ds *models.DataSource
 
 	query := `
 		INSERT INTO data_sources (
-			id, name, description, type, url, config, labels, status, enabled,
-			timeout, retry_count, health_check_interval, last_health_check,
-			health_status, created_by, created_at, updated_at
+			id, name, description, type, config, tags, status, version,
+			health_check_url, health_status, last_health_check, error_message,
+			created_by, created_at, updated_at
 		) VALUES (
-			:id, :name, :description, :type, :url, :config, :labels, :status, :enabled,
-			:timeout, :retry_count, :health_check_interval, :last_health_check,
-			:health_status, :created_by, :created_at, :updated_at
+			:id, :name, :description, :type, :config, :tags, :status, :version,
+			:health_check_url, :health_status, :last_health_check, :error_message,
+			:created_by, :created_at, :updated_at
 		)`
 
 	_, err = sqlx.NamedExecContext(ctx, r.getExecutor(), query, map[string]interface{}{
-		"id":                    ds.ID,
-		"name":                  ds.Name,
-		"description":           ds.Description,
-		"type":                  ds.Type,
-		"url":                   ds.Config.URL,
-		"config":                string(configJSON),
-		"tags":                  string(tagsJSON),
-		"status":                ds.Status,
-		"health_check_url":      ds.HealthCheckURL,
-		"last_health_check":     ds.LastHealthCheck,
-		"health_status":         ds.HealthStatus,
-		"created_by":            ds.CreatedBy,
-		"created_at":            ds.CreatedAt,
-		"updated_at":            ds.UpdatedAt,
+		"id":                ds.ID,
+		"name":              ds.Name,
+		"description":       ds.Description,
+		"type":              ds.Type,
+		"config":            string(configJSON),
+		"tags":              string(tagsJSON),
+		"status":            ds.Status,
+		"version":           ds.Version,
+		"health_check_url":  ds.HealthCheckURL,
+		"health_status":     ds.HealthStatus,
+		"last_health_check": ds.LastHealthCheck,
+		"error_message":     ds.ErrorMessage,
+		"created_by":        ds.CreatedBy,
+		"created_at":        ds.CreatedAt,
+		"updated_at":        ds.UpdatedAt,
 	})
 
 	if err != nil {
@@ -286,16 +287,16 @@ func (r *dataSourceRepository) GetByID(ctx context.Context, id string) (*models.
 	var configJSON, tagsJSON string
 
 	query := `
-		SELECT id, name, description, type, config, tags, status,
-		       health_check_url, last_health_check, health_status, 
+		SELECT id, name, description, type, config, tags, status, version,
+		       health_check_url, health_status, last_health_check, error_message,
 		       created_by, created_at, updated_at
 		FROM data_sources 
 		WHERE id = $1 AND deleted_at IS NULL`
 
 	err := r.getExecutor().QueryRowxContext(ctx, query, id).Scan(
 		&ds.ID, &ds.Name, &ds.Description, &ds.Type, &configJSON, &tagsJSON,
-		&ds.Status, &ds.HealthCheckURL, &ds.LastHealthCheck, &ds.HealthStatus, 
-		&ds.CreatedBy, &ds.CreatedAt, &ds.UpdatedAt,
+		&ds.Status, &ds.Version, &ds.HealthCheckURL, &ds.HealthStatus, 
+		&ds.LastHealthCheck, &ds.ErrorMessage, &ds.CreatedBy, &ds.CreatedAt, &ds.UpdatedAt,
 	)
 
 	if err != nil {
@@ -330,16 +331,16 @@ func (r *dataSourceRepository) GetByName(ctx context.Context, name string) (*mod
 	var configJSON, tagsJSON string
 
 	query := `
-		SELECT id, name, description, type, config, tags, status,
-		       health_check_url, last_health_check, health_status, 
+		SELECT id, name, description, type, config, tags, status, version,
+		       health_check_url, health_status, last_health_check, error_message,
 		       created_by, created_at, updated_at
 		FROM data_sources 
 		WHERE name = $1 AND deleted_at IS NULL`
 
 	err := r.getExecutor().QueryRowxContext(ctx, query, name).Scan(
 		&ds.ID, &ds.Name, &ds.Description, &ds.Type, &configJSON, &tagsJSON,
-		&ds.Status, &ds.HealthCheckURL, &ds.LastHealthCheck, &ds.HealthStatus, 
-		&ds.CreatedBy, &ds.CreatedAt, &ds.UpdatedAt,
+		&ds.Status, &ds.Version, &ds.HealthCheckURL, &ds.HealthStatus, 
+		&ds.LastHealthCheck, &ds.ErrorMessage, &ds.CreatedBy, &ds.CreatedAt, &ds.UpdatedAt,
 	)
 
 	if err != nil {

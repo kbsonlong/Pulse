@@ -14,7 +14,7 @@ import (
 	"Pulse/internal/models"
 )
 
-func setupAlertRepositoryTest(t *testing.T) (*alertRepository, sqlmock.Sqlmock, func()) {
+func setupAlertRepositoryTest(t *testing.T) (AlertRepository, sqlmock.Sqlmock, func()) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
@@ -25,7 +25,7 @@ func setupAlertRepositoryTest(t *testing.T) (*alertRepository, sqlmock.Sqlmock, 
 		db.Close()
 	}
 
-	return repo.(*alertRepository), mock, cleanup
+	return repo, mock, cleanup
 }
 
 func TestAlertRepository_Create(t *testing.T) {
@@ -195,8 +195,8 @@ func TestAlertRepository_SoftDelete(t *testing.T) {
 
 	alertID := uuid.New().String()
 
-	mock.ExpectExec(`UPDATE alerts SET deleted_at = \$1, updated_at = \$2 WHERE id = \$3 AND deleted_at IS NULL`).WithArgs(
-		sqlmock.AnyArg(), sqlmock.AnyArg(), alertID,
+	mock.ExpectExec(`UPDATE alerts SET deleted_at = \$1, updated_at = \$1 WHERE id = \$2 AND deleted_at IS NULL`).WithArgs(
+		sqlmock.AnyArg(), alertID,
 	).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.SoftDelete(context.Background(), alertID)
