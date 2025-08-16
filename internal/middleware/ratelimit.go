@@ -5,95 +5,78 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 )
 
-// RedisRateLimiter Redis分布式限流器
-type RedisRateLimiter struct {
-	client *redis.Client
-	logger *zap.Logger
+// RateLimitConfig 限流配置
+type RateLimitConfig struct {
+	RedisClient    *redis.Client
+	Logger         *logrus.Logger
+	KeyPrefix      string        // Redis键前缀
+	DefaultLimit   int           // 默认限制次数
+	DefaultWindow  time.Duration // 默认时间窗口
+	SkipSuccessful bool          // 是否跳过成功请求的计数
+	KeyGenerator   func(*gin.Context) string // 自定义键生成器
 }
 
-// NewRedisRateLimiter 创建Redis限流器
-func NewRedisRateLimiter(client *redis.Client, logger *zap.Logger) *RedisRateLimiter {
-	return &RedisRateLimiter{
-		client: client,
-		logger: logger,
+// DefaultRateLimitConfig 默认限流配置
+func DefaultRateLimitConfig(redisClient *redis.Client) RateLimitConfig {
+	return RateLimitConfig{
+		RedisClient:    redisClient,
+		KeyPrefix:      "rate_limit:",
+		DefaultLimit:   100,
+		DefaultWindow:  time.Minute,
+		SkipSuccessful: false,
+		KeyGenerator: func(c *gin.Context) string {
+			return c.ClientIP()
+		},
 	}
 }
 
-// RedisRateLimitConfig Redis限流配置
-type RedisRateLimitConfig struct {
-	RequestsPerMinute int           // 每分钟请求数
-	BurstSize         int           // 突发大小
-	Window            time.Duration // 时间窗口
-	KeyPrefix         string        // Redis键前缀
-}
-
-// DefaultRedisRateLimitConfig 默认Redis限流配置
-func DefaultRedisRateLimitConfig() RedisRateLimitConfig {
-	return RedisRateLimitConfig{
-		RequestsPerMinute: 60,
-		BurstSize:         10,
-		Window:            time.Minute,
-		KeyPrefix:         "rate_limit:",
-	}
-}
-
-// RedisRateLimitMiddleware Redis分布式限流中间件
-func (r *RedisRateLimiter) RedisRateLimitMiddleware(config RedisRateLimitConfig) gin.HandlerFunc {
+// RateLimitMiddleware 限流中间件
+func RateLimitMiddleware(config RateLimitConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		clientIP := c.ClientIP()
-		userID := c.GetString("user_id")
-		
-		// 构建限流键
-		key := config.KeyPrefix + clientIP
-		if userID != "" {
-			key = config.KeyPrefix + "user:" + userID
+		// 检查是否跳过限流
+		if c.GetBool("skip_rate_limit") {
+			c.Next()
+			return
 		}
 
-		ctx := context.Background()
-		now := time.Now()
+		// 生成限流键
+		key := config.KeyPrefix + config.KeyGenerator(c)
+		limit := config.DefaultLimit
+		window := config.DefaultWindow
 
-		// 使用滑动窗口算法
-		allowed, remaining, resetTime, err := r.slidingWindowRateLimit(ctx, key, config, now)
+		// 检查限流
+		allowed, remaining, resetTime, err := checkRateLimit(config.RedisClient, key, limit, window)
 		if err != nil {
-			r.logger.Error("Rate limit check failed",
-				zap.String("key", key),
-				zap.Error(err),
-				zap.String("request_id", c.GetString("request_id")),
-			)
+			if config.Logger != nil {
+				config.Logger.WithFields(logrus.Fields{
+					"error":      err,
+					"key":        key,
+					"request_id": c.GetString("request_id"),
+				}).Error("Rate limit check failed")
+			}
 			// 限流检查失败时，允许请求通过（fail-open策略）
 			c.Next()
 			return
 		}
 
-		// 设置限流响应头
-		c.Header("X-RateLimit-Limit", strconv.Itoa(config.RequestsPerMinute))
+		// 设置限流相关的响应头
+		c.Header("X-RateLimit-Limit", strconv.Itoa(limit))
 		c.Header("X-RateLimit-Remaining", strconv.Itoa(remaining))
-		c.Header("X-RateLimit-Reset", strconv.FormatInt(resetTime.Unix(), 10))
-		c.Header("X-RateLimit-Window", config.Window.String())
+		c.Header("X-RateLimit-Reset", strconv.FormatInt(resetTime, 10))
 
 		if !allowed {
-			r.logger.Warn("Rate limit exceeded",
-				zap.String("key", key),
-				zap.String("client_ip", clientIP),
-				zap.String("user_id", userID),
-				zap.Int("limit", config.RequestsPerMinute),
-				zap.String("request_id", c.GetString("request_id")),
-			)
-
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":      "Rate limit exceeded",
-				"limit":      config.RequestsPerMinute,
-				"remaining":  remaining,
-				"reset_time": resetTime.Unix(),
-				"window":     config.Window.String(),
-				"request_id": c.GetString("request_id"),
+				"error":   "rate_limit_exceeded",
+				"message": "Rate limit exceeded. Please try again later.",
+				"retry_after": resetTime - time.Now().Unix(),
 			})
 			c.Abort()
 			return
@@ -103,49 +86,44 @@ func (r *RedisRateLimiter) RedisRateLimitMiddleware(config RedisRateLimitConfig)
 	}
 }
 
-// slidingWindowRateLimit 滑动窗口限流算法
-func (r *RedisRateLimiter) slidingWindowRateLimit(ctx context.Context, key string, config RedisRateLimitConfig, now time.Time) (bool, int, time.Time, error) {
-	// 使用Redis的ZSET实现滑动窗口
-	pipe := r.client.Pipeline()
+// checkRateLimit 检查限流状态
+func checkRateLimit(redisClient *redis.Client, key string, limit int, window time.Duration) (allowed bool, remaining int, resetTime int64, err error) {
+	ctx := context.Background()
+	now := time.Now()
+	windowStart := now.Truncate(window)
+	resetTime = windowStart.Add(window).Unix()
 
-	// 移除过期的请求记录
-	expiredBefore := now.Add(-config.Window).UnixNano()
-	pipe.ZRemRangeByScore(ctx, key, "0", strconv.FormatInt(expiredBefore, 10))
+	// 使用Lua脚本确保原子性
+	luaScript := `
+		local key = KEYS[1]
+		local window_start = ARGV[1]
+		local limit = tonumber(ARGV[2])
+		local ttl = tonumber(ARGV[3])
+		
+		-- 清理过期的计数
+		redis.call('ZREMRANGEBYSCORE', key, 0, window_start - 1)
+		
+		-- 获取当前计数
+		local current = redis.call('ZCARD', key)
+		
+		if current < limit then
+			-- 添加当前请求
+			redis.call('ZADD', key, window_start, window_start)
+			redis.call('EXPIRE', key, ttl)
+			return {1, limit - current - 1}
+		else
+			return {0, 0}
+		end
+	`
 
-	// 获取当前窗口内的请求数
-	countCmd := pipe.ZCard(ctx, key)
-
-	// 添加当前请求
-	currentTime := now.UnixNano()
-	pipe.ZAdd(ctx, key, redis.Z{
-		Score:  float64(currentTime),
-		Member: fmt.Sprintf("%d", currentTime),
-	})
-
-	// 设置键的过期时间
-	pipe.Expire(ctx, key, config.Window+time.Minute)
-
-	// 执行管道
-	_, err := pipe.Exec(ctx)
+	result, err := redisClient.Eval(ctx, luaScript, []string{key}, windowStart.Unix(), limit, int(window.Seconds())).Result()
 	if err != nil {
-		return false, 0, now, err
+		return false, 0, resetTime, err
 	}
 
-	// 获取当前请求数
-	currentCount, err := countCmd.Result()
-	if err != nil {
-		return false, 0, now, err
-	}
-
-	// 检查是否超过限制
-	allowed := int(currentCount) <= config.RequestsPerMinute
-	remaining := config.RequestsPerMinute - int(currentCount)
-	if remaining < 0 {
-		remaining = 0
-	}
-
-	// 计算重置时间（下一个窗口开始时间）
-	resetTime := now.Add(config.Window)
+	results := result.([]interface{})
+	allowed = results[0].(int64) == 1
+	remaining = int(results[1].(int64))
 
 	return allowed, remaining, resetTime, nil
 }
@@ -161,174 +139,248 @@ const (
 
 // CircuitBreakerConfig 熔断器配置
 type CircuitBreakerConfig struct {
-	FailureThreshold   int           // 失败阈值
-	SuccessThreshold   int           // 成功阈值（半开状态）
-	Timeout            time.Duration // 熔断超时时间
-	MonitoringPeriod   time.Duration // 监控周期
-	KeyPrefix          string        // Redis键前缀
+	Name               string        // 熔断器名称
+	MaxRequests        uint32        // 半开状态下的最大请求数
+	Interval           time.Duration // 统计时间窗口
+	Timeout            time.Duration // 熔断器打开后的超时时间
+	ReadyToTrip        func(counts Counts) bool // 判断是否应该打开熔断器
+	OnStateChange      func(name string, from CircuitBreakerState, to CircuitBreakerState) // 状态变化回调
+	IsSuccessful       func(*gin.Context) bool // 判断请求是否成功
+	ShouldTrip         func(counts Counts) bool // 自定义熔断条件
+	FallbackResponse   func(*gin.Context)       // 熔断时的降级响应
 }
 
-// DefaultCircuitBreakerConfig 默认熔断器配置
-func DefaultCircuitBreakerConfig() CircuitBreakerConfig {
-	return CircuitBreakerConfig{
-		FailureThreshold:  5,
-		SuccessThreshold:  3,
-		Timeout:           time.Minute * 5,
-		MonitoringPeriod:  time.Minute,
-		KeyPrefix:         "circuit_breaker:",
+// Counts 统计计数
+type Counts struct {
+	Requests         uint32
+	TotalSuccesses   uint32
+	TotalFailures    uint32
+	ConsecutiveSuccesses uint32
+	ConsecutiveFailures  uint32
+}
+
+// CircuitBreaker 熔断器
+type CircuitBreaker struct {
+	name         string
+	maxRequests  uint32
+	interval     time.Duration
+	timeout      time.Duration
+	readyToTrip  func(counts Counts) bool
+	onStateChange func(name string, from CircuitBreakerState, to CircuitBreakerState)
+	isSuccessful func(*gin.Context) bool
+	fallbackResponse func(*gin.Context)
+
+	mutex      sync.Mutex
+	state      CircuitBreakerState
+	generation uint64
+	counts     Counts
+	expiry     time.Time
+}
+
+// NewCircuitBreaker 创建新的熔断器
+func NewCircuitBreaker(config CircuitBreakerConfig) *CircuitBreaker {
+	cb := &CircuitBreaker{
+		name:         config.Name,
+		maxRequests:  config.MaxRequests,
+		interval:     config.Interval,
+		timeout:      config.Timeout,
+		readyToTrip:  config.ReadyToTrip,
+		onStateChange: config.OnStateChange,
+		isSuccessful: config.IsSuccessful,
+		fallbackResponse: config.FallbackResponse,
 	}
+
+	// 设置默认值
+	if cb.maxRequests == 0 {
+		cb.maxRequests = 1
+	}
+	if cb.interval == 0 {
+		cb.interval = time.Minute
+	}
+	if cb.timeout == 0 {
+		cb.timeout = time.Minute
+	}
+	if cb.readyToTrip == nil {
+		cb.readyToTrip = func(counts Counts) bool {
+			return counts.ConsecutiveFailures > 5
+		}
+	}
+	if cb.isSuccessful == nil {
+		cb.isSuccessful = func(c *gin.Context) bool {
+			return c.Writer.Status() < 500
+		}
+	}
+	if cb.fallbackResponse == nil {
+		cb.fallbackResponse = func(c *gin.Context) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":   "service_unavailable",
+				"message": "Service is temporarily unavailable. Please try again later.",
+			})
+		}
+	}
+
+	cb.toNewGeneration(time.Now())
+	return cb
+}
+
+// Execute 执行请求
+func (cb *CircuitBreaker) Execute(c *gin.Context) {
+	generation, err := cb.beforeRequest()
+	if err != nil {
+		cb.fallbackResponse(c)
+		c.Abort()
+		return
+	}
+
+	c.Next()
+
+	cb.afterRequest(generation, cb.isSuccessful(c))
+}
+
+// beforeRequest 请求前检查
+func (cb *CircuitBreaker) beforeRequest() (uint64, error) {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	now := time.Now()
+	state, generation := cb.currentState(now)
+
+	if state == StateOpen {
+		return generation, fmt.Errorf("circuit breaker is open")
+	} else if state == StateHalfOpen && cb.counts.Requests >= cb.maxRequests {
+		return generation, fmt.Errorf("too many requests")
+	}
+
+	cb.counts.onRequest()
+	return generation, nil
+}
+
+// afterRequest 请求后处理
+func (cb *CircuitBreaker) afterRequest(before uint64, success bool) {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	now := time.Now()
+	state, generation := cb.currentState(now)
+	if generation != before {
+		return
+	}
+
+	if success {
+		cb.onSuccess(state, now)
+	} else {
+		cb.onFailure(state, now)
+	}
+}
+
+// currentState 获取当前状态
+func (cb *CircuitBreaker) currentState(now time.Time) (CircuitBreakerState, uint64) {
+	switch cb.state {
+	case StateClosed:
+		if !cb.expiry.IsZero() && cb.expiry.Before(now) {
+			cb.toNewGeneration(now)
+		}
+	case StateOpen:
+		if cb.expiry.Before(now) {
+			cb.setState(StateHalfOpen, now)
+		}
+	}
+	return cb.state, cb.generation
+}
+
+// onSuccess 成功处理
+func (cb *CircuitBreaker) onSuccess(state CircuitBreakerState, now time.Time) {
+	cb.counts.onSuccess()
+
+	if state == StateHalfOpen {
+		cb.setState(StateClosed, now)
+	}
+}
+
+// onFailure 失败处理
+func (cb *CircuitBreaker) onFailure(state CircuitBreakerState, now time.Time) {
+	cb.counts.onFailure()
+
+	if cb.readyToTrip(cb.counts) {
+		cb.setState(StateOpen, now)
+	}
+}
+
+// setState 设置状态
+func (cb *CircuitBreaker) setState(state CircuitBreakerState, now time.Time) {
+	if cb.state == state {
+		return
+	}
+
+	prev := cb.state
+	cb.state = state
+
+	cb.toNewGeneration(now)
+
+	if cb.onStateChange != nil {
+		cb.onStateChange(cb.name, prev, state)
+	}
+}
+
+// toNewGeneration 切换到新的统计周期
+func (cb *CircuitBreaker) toNewGeneration(now time.Time) {
+	cb.generation++
+	cb.counts = Counts{}
+
+	var zero time.Time
+	switch cb.state {
+	case StateClosed:
+		if cb.interval == 0 {
+			cb.expiry = zero
+		} else {
+			cb.expiry = now.Add(cb.interval)
+		}
+	case StateOpen:
+		cb.expiry = now.Add(cb.timeout)
+	default: // StateHalfOpen
+		cb.expiry = zero
+	}
+}
+
+// onRequest 请求计数
+func (c *Counts) onRequest() {
+	c.Requests++
+}
+
+// onSuccess 成功计数
+func (c *Counts) onSuccess() {
+	c.TotalSuccesses++
+	c.ConsecutiveSuccesses++
+	c.ConsecutiveFailures = 0
+}
+
+// onFailure 失败计数
+func (c *Counts) onFailure() {
+	c.TotalFailures++
+	c.ConsecutiveFailures++
+	c.ConsecutiveSuccesses = 0
 }
 
 // CircuitBreakerMiddleware 熔断器中间件
-func (r *RedisRateLimiter) CircuitBreakerMiddleware(serviceName string, config CircuitBreakerConfig) gin.HandlerFunc {
+func CircuitBreakerMiddleware(cb *CircuitBreaker) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
-		key := config.KeyPrefix + serviceName
-
-		// 检查熔断器状态
-		state, err := r.getCircuitBreakerState(ctx, key, config)
-		if err != nil {
-			r.logger.Error("Circuit breaker state check failed",
-				zap.String("service", serviceName),
-				zap.Error(err),
-				zap.String("request_id", c.GetString("request_id")),
-			)
-			// 检查失败时，允许请求通过
-			c.Next()
-			return
-		}
-
-		// 如果熔断器开启，拒绝请求
-		if state == StateOpen {
-			r.logger.Warn("Circuit breaker is open",
-				zap.String("service", serviceName),
-				zap.String("request_id", c.GetString("request_id")),
-			)
-
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error":      "Service temporarily unavailable",
-				"service":    serviceName,
-				"state":      "open",
-				"request_id": c.GetString("request_id"),
-			})
-			c.Abort()
-			return
-		}
-
-		// 记录请求开始时间
-		start := time.Now()
-
-		// 处理请求
-		c.Next()
-
-		// 记录请求结果
-		duration := time.Since(start)
-		success := c.Writer.Status() < 500
-
-		// 更新熔断器统计
-		err = r.updateCircuitBreakerStats(ctx, key, config, success, duration)
-		if err != nil {
-			r.logger.Error("Failed to update circuit breaker stats",
-				zap.String("service", serviceName),
-				zap.Error(err),
-				zap.String("request_id", c.GetString("request_id")),
-			)
-		}
+		cb.Execute(c)
 	}
 }
 
-// getCircuitBreakerState 获取熔断器状态
-func (r *RedisRateLimiter) getCircuitBreakerState(ctx context.Context, key string, config CircuitBreakerConfig) (CircuitBreakerState, error) {
-	now := time.Now()
-
-	// 获取熔断器数据
-	pipe := r.client.Pipeline()
-	stateCmd := pipe.HGet(ctx, key, "state")
-	lastFailureCmd := pipe.HGet(ctx, key, "last_failure")
-	failureCountCmd := pipe.HGet(ctx, key, "failure_count")
-	successCountCmd := pipe.HGet(ctx, key, "success_count")
-
-	_, err := pipe.Exec(ctx)
-	if err != nil && err != redis.Nil {
-		return StateClosed, err
-	}
-
-	// 解析状态
-	stateStr, _ := stateCmd.Result()
-	lastFailureStr, _ := lastFailureCmd.Result()
-	failureCountStr, _ := failureCountCmd.Result()
-	successCountStr, _ := successCountCmd.Result()
-
-	// 默认状态为关闭
-	state := StateClosed
-	if stateStr != "" {
-		switch stateStr {
-		case "open":
-			state = StateOpen
-		case "half_open":
-			state = StateHalfOpen
-		}
-	}
-
-	// 如果是开启状态，检查是否应该转为半开状态
-	if state == StateOpen && lastFailureStr != "" {
-		lastFailure, err := strconv.ParseInt(lastFailureStr, 10, 64)
-		if err == nil {
-			lastFailureTime := time.Unix(lastFailure, 0)
-			if now.Sub(lastFailureTime) >= config.Timeout {
-				// 转为半开状态
-				state = StateHalfOpen
-				r.client.HSet(ctx, key, "state", "half_open")
-				r.client.HSet(ctx, key, "success_count", "0")
-			}
-		}
-	}
-
-	// 如果是半开状态，检查成功次数
-	if state == StateHalfOpen && successCountStr != "" {
-		successCount, err := strconv.Atoi(successCountStr)
-		if err == nil && successCount >= config.SuccessThreshold {
-			// 转为关闭状态
-			state = StateClosed
-			r.client.HSet(ctx, key, "state", "closed")
-			r.client.HSet(ctx, key, "failure_count", "0")
-			r.client.HSet(ctx, key, "success_count", "0")
-		}
-	}
-
-	// 检查失败次数是否达到阈值
-	if state == StateClosed && failureCountStr != "" {
-		failureCount, err := strconv.Atoi(failureCountStr)
-		if err == nil && failureCount >= config.FailureThreshold {
-			// 转为开启状态
-			state = StateOpen
-			r.client.HSet(ctx, key, "state", "open")
-			r.client.HSet(ctx, key, "last_failure", strconv.FormatInt(now.Unix(), 10))
-		}
-	}
-
-	return state, nil
-}
-
-// updateCircuitBreakerStats 更新熔断器统计
-func (r *RedisRateLimiter) updateCircuitBreakerStats(ctx context.Context, key string, config CircuitBreakerConfig, success bool, duration time.Duration) error {
-	now := time.Now()
-
-	if success {
-		// 成功请求
-		pipe := r.client.Pipeline()
-		pipe.HIncrBy(ctx, key, "success_count", 1)
-		pipe.HSet(ctx, key, "last_success", strconv.FormatInt(now.Unix(), 10))
-		pipe.Expire(ctx, key, config.MonitoringPeriod*10) // 保留更长时间的统计数据
-		_, err := pipe.Exec(ctx)
-		return err
-	} else {
-		// 失败请求
-		pipe := r.client.Pipeline()
-		pipe.HIncrBy(ctx, key, "failure_count", 1)
-		pipe.HSet(ctx, key, "last_failure", strconv.FormatInt(now.Unix(), 10))
-		pipe.Expire(ctx, key, config.MonitoringPeriod*10)
-		_, err := pipe.Exec(ctx)
-		return err
+// DefaultCircuitBreakerConfig 默认熔断器配置
+func DefaultCircuitBreakerConfig(name string) CircuitBreakerConfig {
+	return CircuitBreakerConfig{
+		Name:        name,
+		MaxRequests: 3,
+		Interval:    time.Minute,
+		Timeout:     time.Minute,
+		ReadyToTrip: func(counts Counts) bool {
+			failureRatio := float64(counts.TotalFailures) / float64(counts.Requests)
+			return counts.Requests >= 3 && failureRatio >= 0.6
+		},
+		OnStateChange: func(name string, from CircuitBreakerState, to CircuitBreakerState) {
+			// 可以在这里记录状态变化日志或发送告警
+		},
 	}
 }

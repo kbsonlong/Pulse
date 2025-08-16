@@ -8,7 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
-	"pulse/internal/gateway/middleware"
+	"pulse/internal/middleware"
 )
 
 // Gateway API网关
@@ -114,28 +114,12 @@ func (g *Gateway) registerDefaultMiddleware() {
 	g.router.Use(middleware.TimeoutMiddleware(timeoutConfig))
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // registerRoutes 注册路由
 func (g *Gateway) registerRoutes() {
 	// 健康检查端点
 	g.router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"status": "healthy",
+			"status":    "healthy",
 			"timestamp": time.Now().Unix(),
 		})
 	})
@@ -143,8 +127,8 @@ func (g *Gateway) registerRoutes() {
 	// 状态检查端点
 	g.router.GET("/status", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"status": "running",
-			"version": "1.0.0",
+			"status":    "running",
+			"version":   "1.0.0",
 			"timestamp": time.Now().Unix(),
 		})
 	})
@@ -154,7 +138,7 @@ func (g *Gateway) registerRoutes() {
 	{
 		// 需要认证的路由
 		api.Use(middleware.RequireAuthMiddleware(g.authService))
-		
+
 		// 告警相关路由
 		alerts := api.Group("/alerts")
 		{
