@@ -2,63 +2,49 @@ version: '3.8'
 
 services:
   # 告警管理平台主服务
-  alert-platform:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  pulse-server:
+    build: .
     ports:
       - "8080:8080"
     environment:
-      - PORT=8080
-      - GIN_MODE=debug
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=alert_user
-      - DB_PASSWORD=alert_password
-      - DB_NAME=alert_management
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=pulse
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - ELASTICSEARCH_ADDRESSES=http://elasticsearch:9200
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
     depends_on:
       - postgres
       - redis
+      - elasticsearch
+      - rabbitmq
     volumes:
-      - ./configs:/root/configs
       - ./logs:/root/logs
+      - ./config:/root/config
     networks:
-      - alert-network
+      - pulse-network
     restart: unless-stopped
 
   # PostgreSQL 数据库
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=alert_user
-      - POSTGRES_PASSWORD=alert_password
-      - POSTGRES_DB=alert_management
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=pulse
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
     networks:
-      - alert-network
+      - pulse-network
     restart: unless-stopped
 
-  # TimescaleDB (基于PostgreSQL)
-  timescaledb:
-    image: timescale/timescaledb:latest-pg15
-    environment:
-      - POSTGRES_USER=timescale_user
-      - POSTGRES_PASSWORD=timescale_password
-      - POSTGRES_DB=timescale_db
-    ports:
-      - "5433:5432"
-    volumes:
-      - timescale_data:/var/lib/postgresql/data
-    networks:
-      - alert-network
-    restart: unless-stopped
-
-  # Redis 缓存和消息队列
+  # Redis 缓存
   redis:
     image: redis:7-alpine
     ports:
@@ -66,68 +52,81 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - alert-network
+      - pulse-network
     restart: unless-stopped
     command: redis-server --appendonly yes
 
-  # Elasticsearch (用于日志和搜索)
+  # Elasticsearch 搜索引擎
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
+      - "9300:9300"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
-      - alert-network
+      - pulse-network
     restart: unless-stopped
 
-  # Grafana (可视化)
+  # RabbitMQ 消息队列
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - pulse-network
+    restart: unless-stopped
+
+  # Grafana 监控面板
   grafana:
     image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./deployments/grafana/provisioning:/etc/grafana/provisioning
     networks:
-      - alert-network
+      - pulse-network
     restart: unless-stopped
-    depends_on:
-      - postgres
-      - timescaledb
 
-  # Prometheus (监控指标收集)
+  # Prometheus 监控
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
     volumes:
-      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     networks:
-      - alert-network
+      - pulse-network
     restart: unless-stopped
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
 
 volumes:
   postgres_data:
-  timescale_data:
   redis_data:
   elasticsearch_data:
+  rabbitmq_data:
   grafana_data:
   prometheus_data:
 
 networks:
-  alert-network:
+  pulse-network:
     driver: bridge

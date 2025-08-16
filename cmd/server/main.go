@@ -9,10 +9,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"Pulse/internal/config"
+	"Pulse/internal/crypto"
 	"Pulse/internal/database"
+	"Pulse/internal/gateway"
+	"Pulse/internal/repository"
+	"Pulse/internal/service"
 )
 
 func main() {
@@ -70,10 +75,74 @@ func main() {
 	}
 	logger.Info("Database health check passed")
 
+	// 初始化加密服务 (使用JWT密钥作为加密密钥)
+	encryptionService := crypto.NewAESEncryptionService(cfg.JWT.Secret)
+
+	// 初始化仓库管理器
+	repoManager := repository.NewRepositoryManager(db.DB, encryptionService)
+	logger.Info("Repository manager initialized")
+
+	// 初始化服务层
+	serviceManager := service.NewServiceManager(repoManager, logger)
+	logger.Info("Service manager initialized")
+
+	// 暂时禁用Worker管理器，专注于API网关测试
+	// workerManager := worker.NewManager(serviceManager, logger)
+	// logger.Info("Worker manager initialized")
+	// if err := workerManager.Start(ctx); err != nil {
+	// 	logger.Fatal("Failed to start worker manager", zap.Error(err))
+	// }
+	// defer workerManager.Stop()
+	logger.Info("Worker manager disabled for API gateway testing")
+
+	// 初始化Redis客户端（可选）
+	var redisClient *redis.Client
+	redisAddr := fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port)
+	if cfg.Redis.Host != "" {
+		logger.Info("Connecting to Redis...", zap.String("address", redisAddr))
+		redisClient = redis.NewClient(&redis.Options{
+			Addr:     redisAddr,
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+		})
+
+		// 测试Redis连接
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := redisClient.Ping(ctx).Err(); err != nil {
+			logger.Warn("Redis connection failed, using memory-based features", zap.Error(err))
+			redisClient = nil
+		} else {
+			logger.Info("Redis connected successfully")
+		}
+	}
+
+	// 初始化API网关
+	logger.Info("Initializing API Gateway...")
+	
+	// 准备API Keys（示例数据，生产环境应从数据库或配置文件读取）
+	apiKeys := map[string]string{
+		"demo-api-key-1": "user-1",
+		"demo-api-key-2": "user-2",
+	}
+
+	gatewayConfig := gateway.GatewayConfig{
+		JWTSecret:   cfg.JWT.Secret,
+		RedisClient: redisClient,
+		APIKeys:     apiKeys,
+	}
+
+	gateway := gateway.NewGateway(serviceManager, logger, gatewayConfig)
+	logger.Info("API gateway initialized")
+
+	// 设置路由
+	handler := gateway.SetupRoutes()
+	logger.Info("API gateway routes configured")
+
 	// 创建 HTTP 服务器
 	server := &http.Server{
 		Addr:         cfg.GetServerAddress(),
-		Handler:      setupRoutes(db, logger),
+		Handler:      handler,
 		ReadTimeout:  cfg.Performance.ReadTimeout,
 		WriteTimeout: cfg.Performance.WriteTimeout,
 		IdleTimeout:  cfg.Performance.IdleTimeout,

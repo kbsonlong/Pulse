@@ -4,6 +4,8 @@ import (
 	"time"
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // UserSession 用户会话模型
@@ -185,4 +187,32 @@ func (s *UserSession) ToSessionInfo(maxInactivity time.Duration) *SessionInfo {
 		ExpiresAt:    s.ExpiresAt,
 		IsActive:     s.IsActive(maxInactivity),
 	}
+}
+
+// AuthToken 认证令牌模型
+type AuthToken struct {
+	ID          uuid.UUID  `json:"id" db:"id"`
+	UserID      uuid.UUID  `json:"user_id" db:"user_id"`
+	Token       string     `json:"token" db:"token"`
+	TokenType   string     `json:"token_type" db:"token_type"` // access, refresh
+	Scope       string     `json:"scope" db:"scope"`
+	ExpiresAt   time.Time  `json:"expires_at" db:"expires_at"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// IsExpired 检查令牌是否过期
+func (t *AuthToken) IsExpired() bool {
+	return time.Now().After(t.ExpiresAt)
+}
+
+// IsRevoked 检查令牌是否被撤销
+func (t *AuthToken) IsRevoked() bool {
+	return t.RevokedAt != nil
+}
+
+// IsValid 检查令牌是否有效
+func (t *AuthToken) IsValid() bool {
+	return !t.IsExpired() && !t.IsRevoked()
 }

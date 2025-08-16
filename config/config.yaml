@@ -1,0 +1,172 @@
+# 告警管理平台配置文件
+server:
+  host: "0.0.0.0"
+  port: 8080
+  mode: "debug" # debug, release, test
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+
+# 数据库配置
+database:
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: "password"
+  dbname: "pulse"
+  sslmode: "disable"
+  max_open_conns: 25
+  max_idle_conns: 25
+  conn_max_lifetime: 5m
+
+# Redis配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 5
+
+# Elasticsearch配置
+elasticsearch:
+  addresses:
+    - "http://localhost:9200"
+  username: ""
+  password: ""
+  index_prefix: "pulse"
+  max_retries: 3
+  retry_backoff: 100ms
+
+# RabbitMQ配置
+rabbitmq:
+  url: "amqp://guest:guest@localhost:5672/"
+  exchange: "pulse.alerts"
+  queue_prefix: "pulse"
+  prefetch_count: 10
+  auto_ack: false
+
+# JWT配置
+jwt:
+  secret: "your-secret-key-here"
+  expires_in: 24h
+  refresh_expires_in: 168h # 7 days
+  issuer: "pulse-alert-platform"
+
+# 日志配置
+logging:
+  level: "info" # debug, info, warn, error
+  format: "json" # json, console
+  output: "stdout" # stdout, stderr, file
+  file_path: "logs/app.log"
+  max_size: 100 # MB
+  max_backups: 3
+  max_age: 28 # days
+  compress: true
+
+# 告警配置
+alert:
+  default_severity: "warning"
+  auto_resolve_timeout: 24h
+  escalation_timeout: 1h
+  max_alerts_per_rule: 1000
+  cleanup_interval: 1h
+
+# 通知配置
+notification:
+  email:
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    username: ""
+    password: ""
+    from: "noreply@pulse.com"
+    tls: true
+  
+  slack:
+    webhook_url: ""
+    channel: "#alerts"
+    username: "Pulse Alert Bot"
+  
+  dingtalk:
+    webhook_url: ""
+    secret: ""
+  
+  wechat:
+    corp_id: ""
+    corp_secret: ""
+    agent_id: ""
+
+# Worker配置
+worker:
+  notification:
+    enabled: true
+    workers: 3
+    queue_size: 1000
+  
+  alert_processor:
+    enabled: true
+    workers: 5
+    queue_size: 2000
+    batch_size: 100
+  
+  collector:
+    enabled: true
+    workers: 2
+    interval: 30s
+
+# 限流配置
+rate_limit:
+  enabled: true
+  requests_per_minute: 1000
+  burst: 100
+
+# CORS配置
+cors:
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+  allowed_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "OPTIONS"
+  allowed_headers:
+    - "Origin"
+    - "Content-Type"
+    - "Accept"
+    - "Authorization"
+  allow_credentials: true
+  max_age: 12h
+
+# 监控配置
+monitoring:
+  metrics:
+    enabled: true
+    path: "/metrics"
+  
+  health:
+    enabled: true
+    path: "/health"
+  
+  pprof:
+    enabled: false
+    path: "/debug/pprof"
+
+# 外部集成配置
+integrations:
+  prometheus:
+    enabled: false
+    url: "http://localhost:9090"
+    timeout: 30s
+  
+  grafana:
+    enabled: false
+    url: "http://localhost:3000"
+    api_key: ""
+  
+  zabbix:
+    enabled: false
+    url: "http://localhost/zabbix"
+    username: ""
+    password: ""

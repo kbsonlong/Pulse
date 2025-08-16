@@ -17,18 +17,18 @@ import (
 	_ "github.com/lib/pq"
 
 	"Pulse/internal/models"
-	"Pulse/internal/service"
+	"Pulse/internal/crypto"
 )
 
 // dataSourceRepository 数据源仓储实现
 type dataSourceRepository struct {
 	db *sqlx.DB
 	tx *sqlx.Tx
-	encryptionService service.EncryptionService
+	encryptionService crypto.EncryptionService
 }
 
 // NewDataSourceRepository 创建新的数据源仓储实例
-func NewDataSourceRepository(db *sqlx.DB, encryptionService service.EncryptionService) DataSourceRepository {
+func NewDataSourceRepository(db *sqlx.DB, encryptionService crypto.EncryptionService) DataSourceRepository {
 	return &dataSourceRepository{
 		db: db,
 		encryptionService: encryptionService,
@@ -36,7 +36,7 @@ func NewDataSourceRepository(db *sqlx.DB, encryptionService service.EncryptionSe
 }
 
 // NewDataSourceRepositoryWithTx 创建带事务的数据源仓储实例
-func NewDataSourceRepositoryWithTx(tx *sqlx.Tx, encryptionService service.EncryptionService) DataSourceRepository {
+func NewDataSourceRepositoryWithTx(tx *sqlx.Tx, encryptionService crypto.EncryptionService) DataSourceRepository {
 	return &dataSourceRepository{
 		db: nil, // 事务模式下不使用db
 		tx: tx,

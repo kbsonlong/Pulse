@@ -4,14 +4,14 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
-	"Pulse/internal/service"
+	"Pulse/internal/crypto"
 )
 
 // repositoryManager 仓储管理器实现
 type repositoryManager struct {
 	db *sqlx.DB
 	tx *sqlx.Tx
-	encryptionService service.EncryptionService
+	encryptionService crypto.EncryptionService
 
 	// 仓储实例
 	userRepo       UserRepository
@@ -25,7 +25,7 @@ type repositoryManager struct {
 }
 
 // NewRepositoryManager 创建新的仓储管理器
-func NewRepositoryManager(db *sqlx.DB, encryptionService service.EncryptionService) RepositoryManager {
+func NewRepositoryManager(db *sqlx.DB, encryptionService crypto.EncryptionService) RepositoryManager {
 	return &repositoryManager{
 		db: db,
 		encryptionService: encryptionService,
