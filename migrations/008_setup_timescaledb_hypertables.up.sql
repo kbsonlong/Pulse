@@ -16,7 +16,7 @@ SELECT create_hypertable(
 -- 创建alert_history超表（告警历史时序数据）
 SELECT create_hypertable(
     'alert_history',
-    'changed_at',
+    'timestamp',
     chunk_time_interval => INTERVAL '1 day',
     if_not_exists => TRUE
 );
@@ -24,7 +24,7 @@ SELECT create_hypertable(
 -- 创建rule_evaluations超表（规则执行历史时序数据）
 SELECT create_hypertable(
     'rule_evaluations',
-    'evaluated_at',
+    'evaluation_time',
     chunk_time_interval => INTERVAL '1 day',
     if_not_exists => TRUE
 );
@@ -45,13 +45,7 @@ SELECT create_hypertable(
     if_not_exists => TRUE
 );
 
--- 创建ticket_status_history超表（工单状态历史时序数据）
-SELECT create_hypertable(
-    'ticket_status_history',
-    'changed_at',
-    chunk_time_interval => INTERVAL '1 day',
-    if_not_exists => TRUE
-);
+-- ticket_status_history 表将在后续迁移中创建和配置
 
 -- 创建knowledge_document_access_logs超表（文档访问日志时序数据）
 SELECT create_hypertable(
@@ -106,13 +100,6 @@ SELECT add_retention_policy(
     if_not_exists => TRUE
 );
 
--- ticket_status_history: 保留2年的工单历史
-SELECT add_retention_policy(
-    'ticket_status_history',
-    INTERVAL '2 years',
-    if_not_exists => TRUE
-);
-
 -- knowledge_document_access_logs: 保留6个月的访问日志
 SELECT add_retention_policy(
     'knowledge_document_access_logs',
@@ -164,12 +151,7 @@ SELECT add_compression_policy(
     if_not_exists => TRUE
 );
 
--- ticket_status_history: 30天后压缩
-SELECT add_compression_policy(
-    'ticket_status_history',
-    INTERVAL '30 days',
-    if_not_exists => TRUE
-);
+
 
 -- knowledge_document_access_logs: 7天后压缩
 SELECT add_compression_policy(

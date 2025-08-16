@@ -13,11 +13,22 @@ DROP INDEX IF EXISTS idx_data_sources_name;
 CREATE UNIQUE INDEX idx_data_sources_name ON data_sources(name) WHERE deleted_at IS NULL;
 
 -- 为状态字段创建索引（排除已删除记录）
+-- 先删除原有索引，再创建支持软删除的新索引
+DROP INDEX IF EXISTS idx_data_sources_status;
 CREATE INDEX idx_data_sources_status ON data_sources(status) WHERE deleted_at IS NULL;
+
+DROP INDEX IF EXISTS idx_data_sources_type;
 CREATE INDEX idx_data_sources_type ON data_sources(type) WHERE deleted_at IS NULL;
+
+DROP INDEX IF EXISTS idx_data_sources_enabled;
 CREATE INDEX idx_data_sources_enabled ON data_sources(enabled) WHERE deleted_at IS NULL;
+
+DROP INDEX IF EXISTS idx_data_sources_last_health_check_status;
 CREATE INDEX idx_data_sources_health_status ON data_sources(last_health_check_status) WHERE deleted_at IS NULL;
 
 -- 创建复合索引
+DROP INDEX IF EXISTS idx_data_sources_type_status;
 CREATE INDEX idx_data_sources_type_status ON data_sources(type, status) WHERE deleted_at IS NULL;
+
+DROP INDEX IF EXISTS idx_data_sources_enabled_status;
 CREATE INDEX idx_data_sources_status_enabled ON data_sources(status, enabled) WHERE deleted_at IS NULL;

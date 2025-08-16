@@ -147,7 +147,7 @@ func (db *DB) RunMigrations() error {
 	if err != nil {
 		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
-	defer m.Close()
+	// 注意：不使用 defer m.Close() 以避免关闭底层数据库连接
 
 	// 获取当前版本
 	currentVersion, dirty, err := m.Version()
@@ -215,7 +215,7 @@ func (db *DB) RollbackMigrations(steps int) error {
 	if err != nil {
 		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
-	defer m.Close()
+	// 注意：不使用 defer m.Close() 以避免关闭底层数据库连接
 
 	// 获取当前版本
 	currentVersion, dirty, err := m.Version()
@@ -267,7 +267,7 @@ func (db *DB) MigrationStatus() (version uint, dirty bool, err error) {
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to create migrate instance: %w", err)
 	}
-	defer m.Close()
+	// 注意：不使用 defer m.Close() 以避免关闭底层数据库连接
 
 	// 获取当前版本
 	version, dirty, err = m.Version()

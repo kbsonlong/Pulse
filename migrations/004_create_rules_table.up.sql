@@ -104,7 +104,7 @@ CREATE TABLE rules (
 
 -- 创建规则执行历史表（时序数据）
 CREATE TABLE rule_evaluations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     rule_id UUID NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
     
     -- 执行信息
@@ -125,6 +125,9 @@ CREATE TABLE rule_evaluations (
     
     -- 元数据
     metadata JSONB DEFAULT '{}',
+    
+    -- 复合主键包含分区列
+    PRIMARY KEY (id, evaluation_time),
     
     -- 约束
     CONSTRAINT rule_evaluations_duration_check CHECK (duration_ms >= 0),

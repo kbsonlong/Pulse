@@ -285,7 +285,7 @@ CREATE TABLE knowledge_document_tags (
 
 -- 创建文档访问日志表（时序数据）
 CREATE TABLE knowledge_document_access_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     document_id UUID NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
     
     -- 访问信息
@@ -307,7 +307,10 @@ CREATE TABLE knowledge_document_access_logs (
     accessed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- 元数据
-    metadata JSONB DEFAULT '{}'
+    metadata JSONB DEFAULT '{}',
+    
+    -- 复合主键包含分区列
+    PRIMARY KEY (id, accessed_at)
 );
 
 -- 创建文档评分表

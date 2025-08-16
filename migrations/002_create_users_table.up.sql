@@ -134,7 +134,7 @@ CREATE INDEX idx_user_sessions_last_accessed_at ON user_sessions(last_accessed_a
 
 -- 创建用户操作日志表
 CREATE TABLE user_audit_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     
     -- 操作信息
@@ -160,7 +160,10 @@ CREATE TABLE user_audit_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- 元数据
-    metadata JSONB DEFAULT '{}'
+    metadata JSONB DEFAULT '{}',
+    
+    -- 复合主键包含分区列
+    PRIMARY KEY (id, created_at)
 );
 
 -- 创建用户操作日志表索引

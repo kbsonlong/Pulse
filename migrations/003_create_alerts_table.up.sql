@@ -80,7 +80,7 @@ CREATE TABLE alerts (
 
 -- 创建告警历史表（时序数据）
 CREATE TABLE alert_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     alert_id UUID NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
     
     -- 状态变更信息
@@ -105,12 +105,15 @@ CREATE TABLE alert_history (
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- 元数据
-    metadata JSONB DEFAULT '{}'
+    metadata JSONB DEFAULT '{}',
+    
+    -- 复合主键包含分区列
+    PRIMARY KEY (id, timestamp)
 );
 
 -- 创建告警指标数据表（时序数据）
 CREATE TABLE alert_metrics (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     alert_id UUID NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
     
     -- 指标信息
@@ -125,7 +128,10 @@ CREATE TABLE alert_metrics (
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- 元数据
-    metadata JSONB DEFAULT '{}'
+    metadata JSONB DEFAULT '{}',
+    
+    -- 复合主键包含分区列
+    PRIMARY KEY (id, timestamp)
 );
 
 -- 创建告警分组表

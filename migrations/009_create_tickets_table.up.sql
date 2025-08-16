@@ -84,7 +84,7 @@ CREATE TABLE tickets (
 
 -- 创建工单状态历史表（时序数据）
 CREATE TABLE ticket_status_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
     
     -- 状态变更信息
@@ -104,7 +104,10 @@ CREATE TABLE ticket_status_history (
     changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- 元数据
-    metadata JSONB DEFAULT '{}'
+    metadata JSONB DEFAULT '{}',
+    
+    -- 复合主键包含分区列
+    PRIMARY KEY (id, changed_at)
 );
 
 -- 创建工单评论表
@@ -289,11 +292,23 @@ CREATE INDEX idx_tickets_assignee_status ON tickets(assignee_id, status);
 CREATE INDEX idx_tickets_category_status ON tickets(category, status);
 CREATE INDEX idx_tickets_reported_status ON tickets(reported_at, status);
 
--- ticket_status_history 表索引
+-- 创建工单状态历史索引
 CREATE INDEX idx_ticket_status_history_ticket_id ON ticket_status_history(ticket_id);
 CREATE INDEX idx_ticket_status_history_changed_at ON ticket_status_history(changed_at);
-CREATE INDEX idx_ticket_status_history_new_status ON ticket_status_history(new_status);
 CREATE INDEX idx_ticket_status_history_changed_by ON ticket_status_history(changed_by);
+CREATE INDEX idx_ticket_status_history_new_status ON ticket_status_history(new_status);
+
+-- 配置 TimescaleDB 超表
+SELECT create_hypertable('ticket_status_history', 'changed_at', 
+    chunk_time_interval => INTERVAL '1 day',
+    if_not_exists => TRUE
+);
+
+-- 设置数据保留策略：保留2年的工单状态历史
+SELECT add_retention_policy('ticket_status_history', INTERVAL '2 years', if_not_exists => TRUE);
+
+-- 注意：压缩策略需要在TimescaleDB 2.0+版本中启用columnstore
+-- SELECT add_compression_policy('ticket_status_history', INTERVAL '30 days', if_not_exists => TRUE);
 
 -- ticket_comments 表索引
 CREATE INDEX idx_ticket_comments_ticket_id ON ticket_comments(ticket_id);

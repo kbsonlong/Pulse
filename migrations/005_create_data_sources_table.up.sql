@@ -89,7 +89,7 @@ CREATE TABLE data_sources (
 
 -- 创建数据源健康检查历史表（时序数据）
 CREATE TABLE data_source_health_checks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     data_source_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE CASCADE,
     
     -- 检查信息
@@ -109,6 +109,9 @@ CREATE TABLE data_source_health_checks (
     -- 元数据
     metadata JSONB DEFAULT '{}',
     
+    -- 复合主键包含分区列
+    PRIMARY KEY (id, check_time),
+    
     -- 约束
     CONSTRAINT data_source_health_checks_duration_check CHECK (duration_ms >= 0),
     CONSTRAINT data_source_health_checks_response_time_check CHECK (response_time_ms IS NULL OR response_time_ms >= 0),
@@ -117,7 +120,7 @@ CREATE TABLE data_source_health_checks (
 
 -- 创建数据源查询历史表（时序数据）
 CREATE TABLE data_source_queries (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     data_source_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE CASCADE,
     
     -- 查询信息
@@ -140,6 +143,9 @@ CREATE TABLE data_source_queries (
     
     -- 元数据
     metadata JSONB DEFAULT '{}',
+    
+    -- 复合主键包含分区列
+    PRIMARY KEY (id, query_time),
     
     -- 约束
     CONSTRAINT data_source_queries_duration_check CHECK (duration_ms >= 0),
