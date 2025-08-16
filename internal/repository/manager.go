@@ -4,12 +4,14 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
+	"Pulse/internal/service"
 )
 
 // repositoryManager 仓储管理器实现
 type repositoryManager struct {
 	db *sqlx.DB
 	tx *sqlx.Tx
+	encryptionService service.EncryptionService
 
 	// 仓储实例
 	userRepo       UserRepository
@@ -23,13 +25,14 @@ type repositoryManager struct {
 }
 
 // NewRepositoryManager 创建新的仓储管理器
-func NewRepositoryManager(db *sqlx.DB) RepositoryManager {
+func NewRepositoryManager(db *sqlx.DB, encryptionService service.EncryptionService) RepositoryManager {
 	return &repositoryManager{
 		db: db,
+		encryptionService: encryptionService,
 		userRepo:       NewUserRepository(db),
 		alertRepo:      NewAlertRepository(db),
 		ruleRepo:       NewRuleRepository(db),
-		dataSourceRepo: NewDataSourceRepository(db),
+		dataSourceRepo: NewDataSourceRepository(db, encryptionService),
 		ticketRepo:     NewTicketRepository(db),
 		knowledgeRepo:  NewKnowledgeRepository(db),
 		permissionRepo: NewPermissionRepository(db),
@@ -87,10 +90,11 @@ func (r *repositoryManager) BeginTx(ctx context.Context) (RepositoryManager, err
 	return &repositoryManager{
 		db: r.db,
 		tx: tx,
+		encryptionService: r.encryptionService,
 		userRepo:       NewUserRepositoryWithTx(tx),
 		alertRepo:      NewAlertRepositoryWithTx(tx),
 		ruleRepo:       NewRuleRepositoryWithTx(tx),
-		dataSourceRepo: NewDataSourceRepositoryWithTx(tx),
+		dataSourceRepo: NewDataSourceRepositoryWithTx(tx, r.encryptionService),
 		ticketRepo:     NewTicketRepositoryWithTx(tx),
 		knowledgeRepo:  NewKnowledgeRepositoryWithTx(tx),
 		permissionRepo: NewPermissionRepositoryWithTx(tx),
