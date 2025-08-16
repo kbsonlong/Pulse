@@ -11,12 +11,12 @@ import (
 
 	"go.uber.org/zap"
 
-	"Pulse/internal/cache"
-	"Pulse/internal/config"
-	"Pulse/internal/lock"
-	"Pulse/internal/monitor"
-	"Pulse/internal/queue"
-	"Pulse/internal/redis"
+	"pulse/internal/cache"
+	"pulse/internal/config"
+	"pulse/internal/lock"
+	"pulse/internal/monitor"
+	"pulse/internal/queue"
+	"pulse/internal/redis"
 )
 
 // Message 消息类型别名

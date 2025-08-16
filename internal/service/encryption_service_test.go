@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"Pulse/internal/models"
-	"Pulse/internal/pkg/crypto"
+	"pulse/internal/models"
+	"pulse/internal/pkg/crypto"
 )
 
 // stringPtr 返回字符串的指针

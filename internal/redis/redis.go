@@ -8,7 +8,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"go.uber.org/zap"
 
-	"Pulse/internal/config"
+	"pulse/internal/config"
 )
 
 // Client Redis客户端包装器

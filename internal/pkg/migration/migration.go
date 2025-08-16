@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"Pulse/internal/config"
+	"pulse/internal/config"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"

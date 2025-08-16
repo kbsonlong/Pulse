@@ -3,7 +3,7 @@ package service
 import (
 	"go.uber.org/zap"
 
-	"Pulse/internal/repository"
+	"pulse/internal/repository"
 )
 
 // ServiceManager 服务管理器接口

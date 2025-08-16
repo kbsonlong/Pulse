@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"Pulse/internal/config"
-	redisClient "Pulse/internal/redis"
+	"pulse/internal/config"
+	redisClient "pulse/internal/redis"
 )
 
 // RedisQueue 基于Redis的消息队列实现

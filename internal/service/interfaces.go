@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"Pulse/internal/models"
+	"pulse/internal/models"
 )
 
 // AlertService 告警服务接口

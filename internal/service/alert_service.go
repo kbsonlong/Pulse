@@ -6,8 +6,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"Pulse/internal/models"
-	"Pulse/internal/repository"
+	"pulse/internal/models"
+	"pulse/internal/repository"
 )
 
 // alertService 告警服务实现

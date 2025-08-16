@@ -13,7 +13,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 
-	"Pulse/internal/models"
+	"pulse/internal/models"
 )
 
 type ticketRepository struct {

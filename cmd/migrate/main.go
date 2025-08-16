@@ -8,8 +8,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"Pulse/internal/config"
-	"Pulse/internal/database"
+	"pulse/internal/config"
+	"pulse/internal/database"
 )
 
 func main() {

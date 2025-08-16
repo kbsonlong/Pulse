@@ -8,7 +8,7 @@ import (
 	"errors"
 	"io"
 
-	"Pulse/internal/models"
+	"pulse/internal/models"
 )
 
 // EncryptionService 加密服务接口

@@ -6,8 +6,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"Pulse/internal/models"
-	"Pulse/internal/repository"
+	"pulse/internal/models"
+	"pulse/internal/repository"
 )
 
 // 以下是各个服务的基础存根实现，用于满足编译需求

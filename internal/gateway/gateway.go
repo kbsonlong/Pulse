@@ -2,32 +2,22 @@ package gateway
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 
-	"Pulse/internal/middleware"
-	"Pulse/internal/service"
+	"pulse/internal/gateway/middleware"
 )
 
-// Gateway API网关接口
-type Gateway interface {
-	SetupRoutes() http.Handler
-	RegisterMiddleware(middleware gin.HandlerFunc)
-	GetRouter() *gin.Engine
-}
-
-// gateway API网关实现
-type gateway struct {
-	serviceManager service.ServiceManager
-	logger         *zap.Logger
-	router         *gin.Engine
-	middlewares    []gin.HandlerFunc
-	redisClient    *redis.Client
-	rateLimiter    *middleware.RedisRateLimiter
-	jwtSecret      string
-	apiKeys        map[string]string
+// Gateway API网关
+type Gateway struct {
+	logger      *logrus.Logger
+	router      *gin.Engine
+	redisClient *redis.Client
+	authService middleware.AuthService
+	rbacService middleware.RBACService
 }
 
 // GatewayConfig 网关配置
@@ -38,267 +28,147 @@ type GatewayConfig struct {
 }
 
 // NewGateway 创建新的API网关
-func NewGateway(serviceManager service.ServiceManager, logger *zap.Logger, config GatewayConfig) Gateway {
+func NewGateway(logger *logrus.Logger, redisClient *redis.Client) *Gateway {
 	// 设置Gin模式
 	gin.SetMode(gin.ReleaseMode)
 
+	// 创建路由器
 	router := gin.New()
 
-	// 创建Redis限流器
-	var rateLimiter *middleware.RedisRateLimiter
-	if config.RedisClient != nil {
-		rateLimiter = middleware.NewRedisRateLimiter(config.RedisClient, logger)
+	// 创建认证服务
+	authService := middleware.NewJWTAuthService("your-secret-key", 24*time.Hour)
+
+	// 创建RBAC服务
+	rbacService := middleware.NewDefaultRBACService()
+
+	return &Gateway{
+		logger:      logger,
+		router:      router,
+		redisClient: redisClient,
+		authService: authService,
+		rbacService: rbacService,
 	}
-
-	g := &gateway{
-		serviceManager: serviceManager,
-		logger:         logger,
-		router:         router,
-		middlewares:    make([]gin.HandlerFunc, 0),
-		redisClient:    config.RedisClient,
-		rateLimiter:    rateLimiter,
-		jwtSecret:      config.JWTSecret,
-		apiKeys:        config.APIKeys,
-	}
-
-	// 注册默认中间件
-	g.registerDefaultMiddlewares()
-
-	return g
 }
 
 // SetupRoutes 设置路由
-func (g *gateway) SetupRoutes() http.Handler {
-	// 应用中间件
-	for _, middleware := range g.middlewares {
-		g.router.Use(middleware)
-	}
+func (g *Gateway) SetupRoutes() http.Handler {
+	// 注册默认中间件
+	g.registerDefaultMiddleware()
 
-	// 健康检查路由
-	g.router.GET("/health", g.healthCheck)
-	g.router.GET("/status", g.statusCheck)
-
-	// API版本路由组
-	v1 := g.router.Group("/api/v1")
-	{
-		// 认证相关路由
-		auth := v1.Group("/auth")
-		{
-			auth.POST("/login", g.login)
-			auth.POST("/logout", g.logout)
-			auth.POST("/refresh", g.refreshToken)
-			auth.POST("/reset-password", g.resetPassword)
-		}
-
-		// 需要认证的路由
-		protected := v1.Group("/")
-		protected.Use(g.authMiddleware())
-		{
-			// 告警相关路由
-			alerts := protected.Group("/alerts")
-			{
-				alerts.GET("", g.listAlerts)
-				alerts.POST("", g.createAlert)
-				alerts.GET("/:id", g.getAlert)
-				alerts.PUT("/:id", g.updateAlert)
-				alerts.DELETE("/:id", g.deleteAlert)
-				alerts.POST("/:id/acknowledge", g.acknowledgeAlert)
-				alerts.POST("/:id/resolve", g.resolveAlert)
-			}
-
-			// 规则相关路由
-			rules := protected.Group("/rules")
-			{
-				rules.GET("", g.listRules)
-				rules.POST("", g.createRule)
-				rules.GET("/:id", g.getRule)
-				rules.PUT("/:id", g.updateRule)
-				rules.DELETE("/:id", g.deleteRule)
-				rules.POST("/:id/enable", g.enableRule)
-				rules.POST("/:id/disable", g.disableRule)
-			}
-
-			// 数据源相关路由
-			datasources := protected.Group("/datasources")
-			{
-				datasources.GET("", g.listDataSources)
-				datasources.POST("", g.createDataSource)
-				datasources.GET("/:id", g.getDataSource)
-				datasources.PUT("/:id", g.updateDataSource)
-				datasources.DELETE("/:id", g.deleteDataSource)
-				datasources.POST("/:id/test", g.testDataSource)
-			}
-
-			// 工单相关路由
-			tickets := protected.Group("/tickets")
-			{
-				tickets.GET("", g.listTickets)
-				tickets.POST("", g.createTicket)
-				tickets.GET("/:id", g.getTicket)
-				tickets.PUT("/:id", g.updateTicket)
-				tickets.DELETE("/:id", g.deleteTicket)
-				tickets.POST("/:id/assign", g.assignTicket)
-			}
-
-			// 知识库相关路由
-			knowledge := protected.Group("/knowledge")
-			{
-				knowledge.GET("", g.listKnowledge)
-				knowledge.POST("", g.createKnowledge)
-				knowledge.GET("/:id", g.getKnowledge)
-				knowledge.PUT("/:id", g.updateKnowledge)
-				knowledge.DELETE("/:id", g.deleteKnowledge)
-				knowledge.GET("/search", g.searchKnowledge)
-			}
-
-			// 用户相关路由
-			users := protected.Group("/users")
-			{
-				users.GET("", g.listUsers)
-				users.POST("", g.createUser)
-				users.GET("/:id", g.getUser)
-				users.PUT("/:id", g.updateUser)
-				users.DELETE("/:id", g.deleteUser)
-			}
-
-			// Webhook相关路由
-			webhooks := protected.Group("/webhooks")
-			{
-				webhooks.GET("", g.listWebhooks)
-				webhooks.POST("", g.createWebhook)
-				webhooks.GET("/:id", g.getWebhook)
-				webhooks.PUT("/:id", g.updateWebhook)
-				webhooks.DELETE("/:id", g.deleteWebhook)
-			}
-
-			// 系统配置相关路由
-			config := protected.Group("/config")
-			{
-				config.GET("", g.listConfig)
-				config.POST("", g.setConfig)
-				config.DELETE("/:key", g.deleteConfig)
-			}
-
-			// Worker状态路由
-			workers := protected.Group("/workers")
-			{
-				workers.GET("/status", g.getWorkerStatus)
-			}
-		}
-	}
+	// 注册路由
+	g.registerRoutes()
 
 	return g.router
 }
 
 // RegisterMiddleware 注册中间件
-func (g *gateway) RegisterMiddleware(middleware gin.HandlerFunc) {
-	g.middlewares = append(g.middlewares, middleware)
+func (g *Gateway) RegisterMiddleware(middleware gin.HandlerFunc) {
+	// 直接使用router的Use方法
+	g.router.Use(middleware)
 }
 
-// registerDefaultMiddlewares 注册默认中间件
-func (g *gateway) registerDefaultMiddlewares() {
+// registerDefaultMiddleware 注册默认中间件
+func (g *Gateway) registerDefaultMiddleware() {
 	// 请求ID中间件
-	g.RegisterMiddleware(middleware.RequestIDMiddleware())
+	g.router.Use(middleware.RequestIDMiddleware())
 
-	// 日志中间件
-	g.RegisterMiddleware(middleware.LoggingMiddleware(g.logger))
+	// 健康检查中间件（设置跳过标记）
+	g.router.Use(middleware.HealthCheckMiddleware())
 
-	// 恢复中间件
-	g.RegisterMiddleware(middleware.RecoveryMiddleware(g.logger))
+	// 安全头中间件
+	g.router.Use(middleware.SecurityMiddleware(middleware.DefaultSecurityConfig()))
 
 	// CORS中间件
-	g.RegisterMiddleware(middleware.CORSMiddleware())
+	g.router.Use(middleware.CORSMiddleware(middleware.DefaultCORSConfig()))
+
+	// 日志中间件
+	loggerConfig := middleware.LoggerConfig{
+		Logger:        g.logger,
+		SkipPaths:     []string{"/health", "/status"},
+		EnableDetails: false,
+	}
+	g.router.Use(middleware.LoggerMiddleware(loggerConfig))
+
+	// 恢复中间件
+	recoveryConfig := middleware.RecoveryConfig{
+		Logger:        g.logger,
+		EnableDetails: true,
+	}
+	g.router.Use(middleware.RecoveryMiddleware(recoveryConfig))
+
+	// 限流中间件
+	if g.redisClient != nil {
+		rateLimitConfig := middleware.DefaultRateLimitConfig(g.redisClient)
+		rateLimitConfig.Logger = g.logger
+		g.router.Use(middleware.RateLimitMiddleware(rateLimitConfig))
+	}
 
 	// 指标收集中间件
-	g.RegisterMiddleware(middleware.MetricsMiddleware())
+	g.router.Use(middleware.MetricsMiddleware())
 
-	// 基础限流中间件（如果没有Redis，使用内存限流）
-	if g.rateLimiter == nil {
-		g.RegisterMiddleware(middleware.RateLimitMiddleware(middleware.RateLimitConfig{
-			RequestsPerMinute: 60,
-			BurstSize:         10,
-		}))
+	// 超时中间件
+	timeoutConfig := middleware.TimeoutConfig{
+		Timeout: 30 * time.Second,
+		Message: "Request timeout",
 	}
+	g.router.Use(middleware.TimeoutMiddleware(timeoutConfig))
 }
 
-// loggerMiddleware 日志中间件
-func (g *gateway) loggerMiddleware() gin.HandlerFunc {
-	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		g.logger.Info("HTTP Request",
-			zap.String("method", param.Method),
-			zap.String("path", param.Path),
-			zap.Int("status", param.StatusCode),
-			zap.Duration("latency", param.Latency),
-			zap.String("ip", param.ClientIP),
-			zap.String("user_agent", param.Request.UserAgent()),
-		)
-		return ""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// registerRoutes 注册路由
+func (g *Gateway) registerRoutes() {
+	// 健康检查端点
+	g.router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy",
+			"timestamp": time.Now().Unix(),
+		})
 	})
-}
 
-// corsMiddleware CORS中间件
-func (g *gateway) corsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	// 状态检查端点
+	g.router.GET("/status", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "running",
+			"version": "1.0.0",
+			"timestamp": time.Now().Unix(),
+		})
+	})
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
+	// API路由组
+	api := g.router.Group("/api/v1")
+	{
+		// 需要认证的路由
+		api.Use(middleware.RequireAuthMiddleware(g.authService))
+		
+		// 告警相关路由
+		alerts := api.Group("/alerts")
+		{
+			alerts.GET("", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"message": "alerts endpoint"})
+			})
+			alerts.POST("", func(c *gin.Context) {
+				c.JSON(http.StatusCreated, gin.H{"message": "alert created"})
+			})
 		}
-
-		c.Next()
-	}
-}
-
-// rateLimitMiddleware 限流中间件
-func (g *gateway) rateLimitMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// TODO: 实现限流逻辑
-		c.Next()
-	}
-}
-
-// authMiddleware 认证中间件（JWT）
-func (g *gateway) authMiddleware() gin.HandlerFunc {
-	return middleware.AuthMiddleware(g.jwtSecret)
-}
-
-// apiKeyAuthMiddleware API Key认证中间件
-func (g *gateway) apiKeyAuthMiddleware() gin.HandlerFunc {
-	return middleware.APIKeyMiddleware(g.apiKeys)
-}
-
-// rbacMiddleware RBAC权限控制中间件
-func (g *gateway) rbacMiddleware(roles ...string) gin.HandlerFunc {
-	return middleware.RoleBasedAccessControl(roles...)
-}
-
-// redisRateLimitMiddleware Redis分布式限流中间件
-func (g *gateway) redisRateLimitMiddleware(config middleware.RedisRateLimitConfig) gin.HandlerFunc {
-	if g.rateLimiter != nil {
-		return g.rateLimiter.RedisRateLimitMiddleware(config)
-	}
-	// 如果没有Redis，使用内存限流
-	return middleware.RateLimitMiddleware(middleware.RateLimitConfig{
-		RequestsPerMinute: config.RequestsPerMinute,
-		BurstSize:         config.BurstSize,
-	})
-}
-
-// circuitBreakerMiddleware 熔断器中间件
-func (g *gateway) circuitBreakerMiddleware(serviceName string, config middleware.CircuitBreakerConfig) gin.HandlerFunc {
-	if g.rateLimiter != nil {
-		return g.rateLimiter.CircuitBreakerMiddleware(serviceName, config)
-	}
-	// 如果没有Redis，跳过熔断器
-	return func(c *gin.Context) {
-		c.Next()
 	}
 }
 
 // GetRouter 获取Gin路由器
-func (g *gateway) GetRouter() *gin.Engine {
+func (g *Gateway) GetRouter() *gin.Engine {
 	return g.router
 }

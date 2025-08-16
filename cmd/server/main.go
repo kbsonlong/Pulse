@@ -10,14 +10,15 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 
-	"Pulse/internal/config"
-	"Pulse/internal/crypto"
-	"Pulse/internal/database"
-	"Pulse/internal/gateway"
-	"Pulse/internal/repository"
-	"Pulse/internal/service"
+	"pulse/internal/config"
+	"pulse/internal/crypto"
+	"pulse/internal/database"
+	"pulse/internal/gateway"
+	"pulse/internal/repository"
+	"pulse/internal/service"
 )
 
 func main() {
@@ -83,7 +84,7 @@ func main() {
 	logger.Info("Repository manager initialized")
 
 	// 初始化服务层
-	serviceManager := service.NewServiceManager(repoManager, logger)
+	_ = service.NewServiceManager(repoManager, logger)
 	logger.Info("Service manager initialized")
 
 	// 暂时禁用Worker管理器，专注于API网关测试
@@ -126,13 +127,18 @@ func main() {
 		"demo-api-key-2": "user-2",
 	}
 
-	gatewayConfig := gateway.GatewayConfig{
+	_ = gateway.GatewayConfig{
 		JWTSecret:   cfg.JWT.Secret,
 		RedisClient: redisClient,
 		APIKeys:     apiKeys,
 	}
 
-	gateway := gateway.NewGateway(serviceManager, logger, gatewayConfig)
+	// 创建logrus logger用于网关
+	logrusLogger := logrus.New()
+	logrusLogger.SetLevel(logrus.InfoLevel)
+	
+	// 创建API网关
+	gateway := gateway.NewGateway(logrusLogger, redisClient)
 	logger.Info("API gateway initialized")
 
 	// 设置路由

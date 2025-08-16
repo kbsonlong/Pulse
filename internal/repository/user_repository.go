@@ -11,7 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/crypto/bcrypt"
 
-	"Pulse/internal/models"
+	"pulse/internal/models"
 )
 
 // userRepository 用户仓储实现

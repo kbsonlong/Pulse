@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"Pulse/internal/models"
+	"pulse/internal/models"
 )
 
 // UserRepository 用户仓储接口

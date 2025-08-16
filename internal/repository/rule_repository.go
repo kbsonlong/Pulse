@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
-	"Pulse/internal/models"
+	"pulse/internal/models"
 )
 
 type ruleRepository struct {

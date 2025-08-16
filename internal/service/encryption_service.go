@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"Pulse/internal/models"
-	"Pulse/internal/pkg/crypto"
+	"pulse/internal/models"
+	"pulse/internal/pkg/crypto"
 )
 
 // EncryptionService 加密服务接口

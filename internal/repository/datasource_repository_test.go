@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	testifymock "github.com/stretchr/testify/mock"
 
-	"Pulse/internal/models"
+	"pulse/internal/models"
 )
 
 // MockEncryptionService mock加密服务

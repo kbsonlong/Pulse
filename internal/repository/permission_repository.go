@@ -11,7 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 
-	"Pulse/internal/models"
+	"pulse/internal/models"
 )
 
 // permissionRepository 权限仓储实现

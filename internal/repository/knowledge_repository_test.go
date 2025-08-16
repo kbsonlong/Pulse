@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"Pulse/internal/models"
+	"pulse/internal/models"
 )
 
 func TestKnowledgeRepository_Create(t *testing.T) {

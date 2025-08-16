@@ -13,7 +13,7 @@ import (
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
 
-	"Pulse/internal/config"
+	"pulse/internal/config"
 )
 
 // DB 数据库连接包装器

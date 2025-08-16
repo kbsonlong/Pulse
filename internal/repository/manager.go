@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
-	"Pulse/internal/crypto"
+	"pulse/internal/crypto"
 )
 
 // repositoryManager 仓储管理器实现

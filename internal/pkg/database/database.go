@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"Pulse/internal/config"
+	"pulse/internal/config"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // PostgreSQL 驱动

@@ -7,7 +7,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"Pulse/internal/service"
+	"pulse/internal/service"
 )
 
 // Manager Worker管理器接口

@@ -7,7 +7,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"Pulse/internal/service"
+	"pulse/internal/service"
 )
 
 // baseWorker 基础Worker实现

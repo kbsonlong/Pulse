@@ -16,8 +16,8 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 
-	"Pulse/internal/models"
-	"Pulse/internal/crypto"
+	"pulse/internal/models"
+	"pulse/internal/crypto"
 )
 
 // dataSourceRepository 数据源仓储实现
