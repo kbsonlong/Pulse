@@ -2,7 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import authSlice from './slices/authSlice';
 import alertSlice from './slices/alertSlice';
 import ruleSlice from './slices/ruleSlice';
-import ticketSlice from './slices/ticketSlice';
+import ticketSlice from './ticketSlice';
 import knowledgeSlice from './slices/knowledgeSlice';
 import uiSlice from './slices/uiSlice';
 

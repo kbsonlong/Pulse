@@ -9,14 +9,13 @@ import {
   assignTicket,
   fetchProcessRecords,
   addProcessRecord,
-  fetchAssignableUsers,
   setFilters,
   clearFilters,
   setPage,
   setLimit,
   clearError,
   clearCurrentTicket,
-} from '../store/slices/ticketSlice';
+} from '../store/ticketSlice';
 import { TicketStatus, TicketPriority } from '../types';
 
 const useTicket = () => {
@@ -25,7 +24,6 @@ const useTicket = () => {
     tickets,
     currentTicket,
     processRecords,
-    assignableUsers,
     total,
     page,
     limit,
@@ -56,8 +54,8 @@ const useTicket = () => {
   );
 
   const handleUpdateTicket = useCallback(
-    (id: string, data: any) => {
-      return dispatch(updateTicket({ id, data }));
+    (id: string, ticketData: any) => {
+      return dispatch(updateTicket({ id, ticketData }));
     },
     [dispatch]
   );
@@ -84,15 +82,13 @@ const useTicket = () => {
   );
 
   const handleAddProcessRecord = useCallback(
-    (id: string, data: any) => {
-      return dispatch(addProcessRecord({ id, data }));
+    (id: string, recordData: any) => {
+      return dispatch(addProcessRecord({ id, recordData }));
     },
     [dispatch]
   );
 
-  const handleFetchAssignableUsers = useCallback(() => {
-    return dispatch(fetchAssignableUsers());
-  }, [dispatch]);
+
 
   const handleSetFilters = useCallback(
     (newFilters: Partial<typeof filters>) => {
@@ -132,7 +128,6 @@ const useTicket = () => {
     tickets,
     currentTicket,
     processRecords,
-    assignableUsers,
     total,
     page,
     limit,
@@ -149,7 +144,7 @@ const useTicket = () => {
     assignTicket: handleAssignTicket,
     fetchProcessRecords: handleFetchProcessRecords,
     addProcessRecord: handleAddProcessRecord,
-    fetchAssignableUsers: handleFetchAssignableUsers,
+
     setFilters: handleSetFilters,
     clearFilters: handleClearFilters,
     setPage: handleSetPage,

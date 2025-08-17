@@ -152,6 +152,34 @@ export interface Knowledge {
   updated_at: string;
 }
 
+export interface KnowledgeBase {
+  id: string;
+  title: string;
+  content: string;
+  summary?: string;
+  tags: string[];
+  category?: KnowledgeCategory;
+  category_id?: string;
+  author: User;
+  author_id: string;
+  status: 'draft' | 'published' | 'archived';
+  views: number;
+  likes: number;
+  score: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeCategory {
+  id: string;
+  name: string;
+  description?: string;
+  parent_id?: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // API响应类型
 export interface ApiResponse<T> {
   code: number;

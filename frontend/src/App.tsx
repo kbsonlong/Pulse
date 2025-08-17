@@ -16,6 +16,12 @@ import {
   TicketDetail,
   KnowledgeList
 } from './pages';
+import DataSourceList from './pages/rules/DataSourceList';
+import TicketForm from './pages/tickets/TicketForm';
+import MyTickets from './pages/tickets/MyTickets';
+import CategoryManagement from './pages/knowledge/CategoryManagement';
+import KnowledgeForm from './pages/knowledge/KnowledgeForm';
+import KnowledgeDetail from './pages/knowledge/KnowledgeDetail';
 import 'antd/dist/reset.css';
 
 const App: React.FC = () => {
@@ -43,18 +49,23 @@ const App: React.FC = () => {
               <Route path="rules">
                 <Route index element={<Navigate to="list" replace />} />
                 <Route path="list" element={<RuleList />} />
-                <Route path="datasources" element={<div>数据源管理</div>} />
+                <Route path="datasources" element={<DataSourceList />} />
               </Route>
               <Route path="tickets">
                 <Route index element={<Navigate to="list" replace />} />
                 <Route path="list" element={<TicketList />} />
-                <Route path=":id" element={<TicketDetail />} />
-                <Route path="my" element={<div>我的工单</div>} />
+                <Route path="create" element={<TicketForm />} />
+                <Route path="edit/:id" element={<TicketForm />} />
+                <Route path="detail/:id" element={<TicketDetail />} />
+                <Route path="my" element={<MyTickets />} />
               </Route>
               <Route path="knowledge">
                 <Route index element={<Navigate to="list" replace />} />
                 <Route path="list" element={<KnowledgeList />} />
-                <Route path="categories" element={<div>分类管理</div>} />
+                <Route path="create" element={<KnowledgeForm />} />
+                <Route path="edit/:id" element={<KnowledgeForm />} />
+                <Route path="detail/:id" element={<KnowledgeDetail />} />
+                <Route path="categories" element={<CategoryManagement />} />
               </Route>
               <Route path="system">
                 <Route path="users" element={<div>用户管理</div>} />
