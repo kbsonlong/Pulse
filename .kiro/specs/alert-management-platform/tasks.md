@@ -106,21 +106,21 @@
 
 ## Webhook服务和告警处理
 
-- [ ] 5. Webhook服务核心实现
+- [x] 5. Webhook服务核心实现
   - 创建Webhook服务的基础架构
   - 实现Webhook适配器接口和注册机制
   - 实现通用的Webhook处理流程
   - 编写Webhook服务的单元测试
   - _需求: 1.1, 1.2, 1.4_
 
-- [ ] 5.1 Alertmanager Webhook适配器
+- [x] 5.1 Alertmanager Webhook适配器
   - 实现Alertmanager Webhook数据解析
   - 实现告警数据标准化转换
   - 实现批量告警处理
   - 编写Alertmanager适配器的单元测试
   - _需求: 1.1, 1.2_
 
-- [ ] 5.2 VMAlert Webhook适配器
+- [x] 5.2 VMAlert Webhook适配器
   - 实现VMAlert Webhook数据解析
   - 实现告警数据标准化转换
   - 实现错误处理和重试机制

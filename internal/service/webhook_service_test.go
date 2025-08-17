@@ -15,7 +15,7 @@ import (
 	"pulse/internal/repository"
 )
 
-// MockWebhookRepository is a mock implementation of WebhookRepository
+// MockWebhookRepository 模拟Webhook仓储
 type MockWebhookRepository struct {
 	mock.Mock
 }
@@ -40,18 +40,16 @@ func (m *MockWebhookRepository) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func (m *MockWebhookRepository) SoftDelete(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
+func (m *MockWebhookRepository) List(ctx context.Context, filter *models.WebhookFilter) ([]*models.Webhook, int64, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).([]*models.Webhook), args.Get(1).(int64), args.Error(2)
 }
 
-func (m *MockWebhookRepository) Exists(ctx context.Context, id string) (bool, error) {
-	args := m.Called(ctx, id)
-	return args.Bool(0), args.Error(1)
-}
-
-func (m *MockWebhookRepository) GetByURL(ctx context.Context, url string) (*models.Webhook, error) {
-	args := m.Called(ctx, url)
+func (m *MockWebhookRepository) GetByName(ctx context.Context, name string) (*models.Webhook, error) {
+	args := m.Called(ctx, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*models.Webhook), args.Error(1)
 }
 
@@ -60,83 +58,13 @@ func (m *MockWebhookRepository) UpdateStatus(ctx context.Context, id string, sta
 	return args.Error(0)
 }
 
-func (m *MockWebhookRepository) Enable(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
+func (m *MockWebhookRepository) UpdateLastTriggered(ctx context.Context, id string, lastTriggered time.Time) error {
+	args := m.Called(ctx, id, lastTriggered)
 	return args.Error(0)
-}
-
-func (m *MockWebhookRepository) Disable(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
-
-func (m *MockWebhookRepository) GetLogs(ctx context.Context, webhookID string, filter *models.WebhookLogFilter) (*models.WebhookLogList, error) {
-	args := m.Called(ctx, webhookID, filter)
-	return args.Get(0).(*models.WebhookLogList), args.Error(1)
-}
-
-func (m *MockWebhookRepository) List(ctx context.Context, filter *models.WebhookFilter) (*models.WebhookList, error) {
-	args := m.Called(ctx, filter)
-	return args.Get(0).(*models.WebhookList), args.Error(1)
-}
-
-func (m *MockWebhookRepository) Count(ctx context.Context, filter *models.WebhookFilter) (int64, error) {
-	args := m.Called(ctx, filter)
-	return args.Get(0).(int64), args.Error(1)
-}
-
-func (m *MockWebhookRepository) IncrementSuccessCount(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
-
-func (m *MockWebhookRepository) IncrementFailureCount(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
-
-func (m *MockWebhookRepository) UpdateLastTriggered(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
-
-func (m *MockWebhookRepository) CreateLog(ctx context.Context, log *models.WebhookLog) error {
-	args := m.Called(ctx, log)
-	return args.Error(0)
-}
-
-func (m *MockWebhookRepository) GetLogByID(ctx context.Context, id string) (*models.WebhookLog, error) {
-	args := m.Called(ctx, id)
-	return args.Get(0).(*models.WebhookLog), args.Error(1)
-}
-
-func (m *MockWebhookRepository) DeleteLogs(ctx context.Context, webhookID string, before time.Time) (int64, error) {
-	args := m.Called(ctx, webhookID, before)
-	return args.Get(0).(int64), args.Error(1)
-}
-
-func (m *MockWebhookRepository) GetStats(ctx context.Context, webhookID string, start, end time.Time) (*models.WebhookStats, error) {
-	args := m.Called(ctx, webhookID, start, end)
-	return args.Get(0).(*models.WebhookStats), args.Error(1)
 }
 
 func (m *MockWebhookRepository) BatchCreate(ctx context.Context, webhooks []*models.Webhook) error {
 	args := m.Called(ctx, webhooks)
-	return args.Error(0)
-}
-
-func (m *MockWebhookRepository) BatchUpdate(ctx context.Context, webhooks []*models.Webhook) error {
-	args := m.Called(ctx, webhooks)
-	return args.Error(0)
-}
-
-func (m *MockWebhookRepository) BatchEnable(ctx context.Context, ids []string) error {
-	args := m.Called(ctx, ids)
-	return args.Error(0)
-}
-
-func (m *MockWebhookRepository) BatchDisable(ctx context.Context, ids []string) error {
-	args := m.Called(ctx, ids)
 	return args.Error(0)
 }
 
@@ -145,20 +73,9 @@ func (m *MockWebhookRepository) BatchDelete(ctx context.Context, ids []string) e
 	return args.Error(0)
 }
 
-func (m *MockWebhookRepository) CleanupLogs(ctx context.Context, before time.Time) (int64, error) {
-	args := m.Called(ctx, before)
-	return args.Get(0).(int64), args.Error(1)
-}
-
-func (m *MockWebhookRepository) CleanupInactive(ctx context.Context, before time.Time) (int64, error) {
-	args := m.Called(ctx, before)
-	return args.Get(0).(int64), args.Error(1)
-}
-
 // MockRepositoryManager 模拟仓储管理器
 type MockRepositoryManager struct {
 	mockWebhookRepo *MockWebhookRepository
-	mockRuleRepo    *MockRuleRepository
 }
 
 func (m *MockRepositoryManager) User() repository.UserRepository {
@@ -170,7 +87,7 @@ func (m *MockRepositoryManager) Alert() repository.AlertRepository {
 }
 
 func (m *MockRepositoryManager) Rule() repository.RuleRepository {
-	return m.mockRuleRepo
+	return nil
 }
 
 func (m *MockRepositoryManager) DataSource() repository.DataSourceRepository {
@@ -197,8 +114,12 @@ func (m *MockRepositoryManager) Webhook() repository.WebhookRepository {
 	return m.mockWebhookRepo
 }
 
+func (m *MockRepositoryManager) Notification() repository.NotificationRepository {
+	return nil
+}
+
 func (m *MockRepositoryManager) BeginTx(ctx context.Context) (repository.RepositoryManager, error) {
-	return nil, nil
+	return m, nil
 }
 
 func (m *MockRepositoryManager) Commit() error {
@@ -214,16 +135,16 @@ func (m *MockRepositoryManager) Close() error {
 }
 
 func setupWebhookServiceTest() (*webhookService, *MockWebhookRepository) {
-	mockWebhookRepo := &MockWebhookRepository{}
+	mockRepo := &MockWebhookRepository{}
 	mockRepoManager := &MockRepositoryManager{
-		mockWebhookRepo: mockWebhookRepo,
+		mockWebhookRepo: mockRepo,
 	}
 	logger := zap.NewNop()
 	service := &webhookService{
 		repoManager: mockRepoManager,
 		logger:      logger,
 	}
-	return service, mockWebhookRepo
+	return service, mockRepo
 }
 
 func TestWebhookService_Create(t *testing.T) {

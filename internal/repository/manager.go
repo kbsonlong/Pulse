@@ -20,9 +20,10 @@ type repositoryManager struct {
 	dataSourceRepo DataSourceRepository
 	ticketRepo     TicketRepository
 	knowledgeRepo  KnowledgeRepository
-	permissionRepo PermissionRepository
-	authRepo       AuthRepository
-	webhookRepo    WebhookRepository
+	permissionRepo   PermissionRepository
+	authRepo         AuthRepository
+	webhookRepo      WebhookRepository
+	notificationRepo NotificationRepository
 }
 
 // NewRepositoryManager 创建新的仓储管理器
@@ -36,9 +37,10 @@ func NewRepositoryManager(db *sqlx.DB, encryptionService crypto.EncryptionServic
 		dataSourceRepo: NewDataSourceRepository(db, encryptionService),
 		ticketRepo:     NewTicketRepository(db),
 		knowledgeRepo:  NewKnowledgeRepository(db),
-		permissionRepo: NewPermissionRepository(db),
-		authRepo:       NewAuthRepository(db),
-		webhookRepo:    NewWebhookRepository(db),
+		permissionRepo:   NewPermissionRepository(db),
+		authRepo:         NewAuthRepository(db),
+		webhookRepo:      NewWebhookRepository(db),
+		notificationRepo: NewNotificationRepository(db),
 	}
 }
 
@@ -87,6 +89,11 @@ func (r *repositoryManager) Webhook() WebhookRepository {
 	return r.webhookRepo
 }
 
+// Notification 获取通知仓储
+func (r *repositoryManager) Notification() NotificationRepository {
+	return r.notificationRepo
+}
+
 // BeginTx 开始事务
 func (r *repositoryManager) BeginTx(ctx context.Context) (RepositoryManager, error) {
 	tx, err := r.db.BeginTxx(ctx, nil)
@@ -103,9 +110,10 @@ func (r *repositoryManager) BeginTx(ctx context.Context) (RepositoryManager, err
 		ruleRepo:       NewRuleRepositoryWithTx(tx),
 		dataSourceRepo: NewDataSourceRepositoryWithTx(tx, r.encryptionService),
 		ticketRepo:     NewTicketRepositoryWithTx(tx),
-		knowledgeRepo:  NewKnowledgeRepositoryWithTx(tx),
-		permissionRepo: NewPermissionRepositoryWithTx(tx),
-		authRepo:       NewAuthRepositoryWithTx(tx),
+		knowledgeRepo:    NewKnowledgeRepositoryWithTx(tx),
+		permissionRepo:   NewPermissionRepositoryWithTx(tx),
+		authRepo:         NewAuthRepositoryWithTx(tx),
+		notificationRepo: NewNotificationRepositoryWithTx(tx),
 	}, nil
 }
 

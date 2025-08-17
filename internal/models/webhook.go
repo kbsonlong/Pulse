@@ -33,11 +33,13 @@ type Webhook struct {
 	ID          uuid.UUID     `json:"id" db:"id"`
 	Name        string        `json:"name" db:"name"`
 	URL         string        `json:"url" db:"url"`
+	Method      string        `json:"method" db:"method"`
 	Secret      *string       `json:"secret,omitempty" db:"secret"`
 	Events      []WebhookEvent `json:"events" db:"events"`
 	Headers     map[string]string `json:"headers" db:"headers"`
 	Timeout     int           `json:"timeout" db:"timeout"`
 	RetryCount  int           `json:"retry_count" db:"retry_count"`
+	RetryDelay  int           `json:"retry_delay" db:"retry_delay"`
 	Status      WebhookStatus `json:"status" db:"status"`
 	LastTriggered *time.Time  `json:"last_triggered,omitempty" db:"last_triggered"`
 	CreatedBy   uuid.UUID     `json:"created_by" db:"created_by"`

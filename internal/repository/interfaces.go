@@ -421,6 +421,7 @@ type RepositoryManager interface {
 	Permission() PermissionRepository
 	Auth() AuthRepository
 	Webhook() WebhookRepository
+	Notification() NotificationRepository
 
 	// 事务管理
 	BeginTx(ctx context.Context) (RepositoryManager, error)

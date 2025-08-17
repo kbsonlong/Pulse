@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"pulse/internal/models"
+	"pulse/internal/repository"
 )
 
 // MockRuleRepository mock规则仓储
@@ -118,16 +119,86 @@ func (m *MockRuleRepository) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
+func (m *MockRuleRepository) Disable(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
 
+func (m *MockRuleRepository) Enable(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
 
+func (m *MockRuleRepository) Exists(ctx context.Context, id string) (bool, error) {
+	args := m.Called(ctx, id)
+	return args.Bool(0), args.Error(1)
+}
 
+// MockRuleRepositoryManager 模拟仓储管理器
+type MockRuleRepositoryManager struct {
+	mockRuleRepo *MockRuleRepository
+}
 
+func (m *MockRuleRepositoryManager) User() repository.UserRepository {
+	return nil
+}
 
+func (m *MockRuleRepositoryManager) Alert() repository.AlertRepository {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) Rule() repository.RuleRepository {
+	return m.mockRuleRepo
+}
+
+func (m *MockRuleRepositoryManager) DataSource() repository.DataSourceRepository {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) Ticket() repository.TicketRepository {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) Knowledge() repository.KnowledgeRepository {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) Permission() repository.PermissionRepository {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) Auth() repository.AuthRepository {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) Webhook() repository.WebhookRepository {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) Notification() repository.NotificationRepository {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) BeginTx(ctx context.Context) (repository.RepositoryManager, error) {
+	return m, nil
+}
+
+func (m *MockRuleRepositoryManager) Commit() error {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) Rollback() error {
+	return nil
+}
+
+func (m *MockRuleRepositoryManager) Close() error {
+	return nil
+}
 
 // 创建测试用的规则服务
-func setupRuleService() (*ruleService, *MockRepositoryManager, *MockRuleRepository) {
+func setupRuleService() (*ruleService, *MockRuleRepositoryManager, *MockRuleRepository) {
 	mockRuleRepo := &MockRuleRepository{}
-	mockRepoManager := &MockRepositoryManager{
+	mockRepoManager := &MockRuleRepositoryManager{
 		mockRuleRepo: mockRuleRepo,
 	}
 	logger := zap.NewNop()

@@ -58,3 +58,36 @@ type NotificationTemplate struct {
 	CreatedAt   time.Time        `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time        `json:"updated_at" db:"updated_at"`
 }
+
+// NotificationFilter 通知查询过滤器
+type NotificationFilter struct {
+	AlertID    *uuid.UUID          `json:"alert_id,omitempty"`
+	Type       *NotificationType   `json:"type,omitempty"`
+	Status     *NotificationStatus `json:"status,omitempty"`
+	Recipient  *string             `json:"recipient,omitempty"`
+	StartTime  *time.Time          `json:"start_time,omitempty"`
+	EndTime    *time.Time          `json:"end_time,omitempty"`
+	Page       int                 `json:"page"`
+	PageSize   int                 `json:"page_size"`
+	SortBy     string              `json:"sort_by"`
+	SortOrder  string              `json:"sort_order"`
+}
+
+// NotificationList 通知列表
+type NotificationList struct {
+	Items      []*Notification `json:"items"`
+	Total      int64           `json:"total"`
+	Page       int             `json:"page"`
+	PageSize   int             `json:"page_size"`
+	TotalPages int             `json:"total_pages"`
+}
+
+// NotificationStats 通知统计
+type NotificationStats struct {
+	Total      int64 `json:"total"`
+	Pending    int64 `json:"pending"`
+	Sent       int64 `json:"sent"`
+	Failed     int64 `json:"failed"`
+	Retry      int64 `json:"retry"`
+	SuccessRate float64 `json:"success_rate"`
+}

@@ -12,16 +12,62 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/zap"
 
 	"pulse/internal/models"
+	"pulse/internal/service"
 )
 
 // MockWebhookService is a mock implementation of WebhookService
 type MockWebhookService struct {
 	mock.Mock
+}
+
+// MockServiceManager is a mock implementation of ServiceManager
+type MockServiceManager struct {
+	webhookService *MockWebhookService
+}
+
+func (m *MockServiceManager) Webhook() service.WebhookService {
+	return m.webhookService
+}
+
+func (m *MockServiceManager) Auth() service.AuthService {
+	return nil
+}
+
+func (m *MockServiceManager) Config() service.ConfigService {
+	return nil
+}
+
+func (m *MockServiceManager) User() service.UserService {
+	return nil
+}
+
+func (m *MockServiceManager) Alert() service.AlertService {
+	return nil
+}
+
+func (m *MockServiceManager) Rule() service.RuleService {
+	return nil
+}
+
+func (m *MockServiceManager) DataSource() service.DataSourceService {
+	return nil
+}
+
+func (m *MockServiceManager) Notification() service.NotificationService {
+	return nil
+}
+
+func (m *MockServiceManager) Ticket() service.TicketService {
+	return nil
+}
+
+func (m *MockServiceManager) Knowledge() service.KnowledgeService {
+	return nil
 }
 
 func (m *MockWebhookService) Create(ctx context.Context, webhook *models.Webhook) error {
@@ -45,14 +91,19 @@ func (m *MockWebhookService) Update(ctx context.Context, webhook *models.Webhook
 func (m *MockWebhookService) Delete(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
-}
-
-func (m *MockWebhookService) List(ctx context.Context, filter *models.WebhookFilter) (*models.WebhookList, int64, error) {
+func (m *MockWebhookService) List(ctx context.Context, filter *service.WebhookFilter) ([]*models.Webhook, error) {
 	args := m.Called(ctx, filter)
-	return args.Get(0).(*models.WebhookList), args.Get(1).(int64), args.Error(2)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	// 检查返回类型
+	if webhookList, ok := args.Get(0).(*models.WebhookList); ok {
+		return webhookList.Webhooks, args.Error(1)
+	}
+	return args.Get(0).([]*models.Webhook), args.Error(1)
 }
 
-func (m *MockWebhookService) Trigger(ctx context.Context, id string, payload map[string]interface{}) error {
+func (m *MockWebhookService) Trigger(ctx context.Context, id string, payload interface{}) error {
 	args := m.Called(ctx, id, payload)
 	return args.Error(0)
 }
@@ -60,26 +111,29 @@ func (m *MockWebhookService) Trigger(ctx context.Context, id string, payload map
 func setupWebhookHandlerTest() (*gin.Engine, *MockWebhookService) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	mockService := &MockWebhookService{}
-	logger := zap.NewNop()
+	mockWebhookService := &MockWebhookService{}
+	mockServiceManager := &MockServiceManager{
+		webhookService: mockWebhookService,
+	}
 
-	handler := &Handler{
-		webhookService: mockService,
+	logger := logrus.New()
+	gateway := &Gateway{
 		logger:         logger,
+		serviceManager: mockServiceManager,
 	}
 
 	// 注册路由
 	v1 := router.Group("/api/v1")
 	{
-		v1.GET("/webhooks", handler.listWebhooks)
-		v1.POST("/webhooks", handler.createWebhook)
-		v1.GET("/webhooks/:id", handler.getWebhook)
-		v1.PUT("/webhooks/:id", handler.updateWebhook)
-		v1.DELETE("/webhooks/:id", handler.deleteWebhook)
-		v1.POST("/webhooks/:id/trigger", handler.triggerWebhook)
+		v1.GET("/webhooks", gateway.listWebhooks)
+		v1.POST("/webhooks", gateway.createWebhook)
+		v1.GET("/webhooks/:id", gateway.getWebhook)
+		v1.PUT("/webhooks/:id", gateway.updateWebhook)
+		v1.DELETE("/webhooks/:id", gateway.deleteWebhook)
+		v1.POST("/webhooks/:id/trigger", gateway.triggerWebhook)
 	}
 
-	return router, mockService
+	return router, mockWebhookService
 }
 
 func TestListWebhooks(t *testing.T) {
