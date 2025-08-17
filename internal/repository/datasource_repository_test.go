@@ -20,6 +20,16 @@ type MockEncryptionService struct {
 	testifymock.Mock
 }
 
+func (m *MockEncryptionService) Encrypt(plaintext string) (string, error) {
+	args := m.Called(plaintext)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockEncryptionService) Decrypt(ciphertext string) (string, error) {
+	args := m.Called(ciphertext)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockEncryptionService) EncryptDataSourceConfig(config *models.DataSourceConfig) error {
 	args := m.Called(config)
 	return args.Error(0)
@@ -28,11 +38,6 @@ func (m *MockEncryptionService) EncryptDataSourceConfig(config *models.DataSourc
 func (m *MockEncryptionService) DecryptDataSourceConfig(config *models.DataSourceConfig) error {
 	args := m.Called(config)
 	return args.Error(0)
-}
-
-func (m *MockEncryptionService) IsConfigEncrypted(config *models.DataSourceConfig) bool {
-	args := m.Called(config)
-	return args.Bool(0)
 }
 
 // setupTestDB 设置测试数据库

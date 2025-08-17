@@ -84,7 +84,7 @@ func main() {
 	logger.Info("Repository manager initialized")
 
 	// 初始化服务层
-	_ = service.NewServiceManager(repoManager, logger)
+	serviceManager := service.NewServiceManager(repoManager, logger, cfg)
 	logger.Info("Service manager initialized")
 
 	// 暂时禁用Worker管理器，专注于API网关测试
@@ -138,7 +138,7 @@ func main() {
 	logrusLogger.SetLevel(logrus.InfoLevel)
 	
 	// 创建API网关
-	gateway := gateway.NewGateway(logrusLogger, redisClient)
+	gateway := gateway.NewGateway(logrusLogger, redisClient, serviceManager)
 	logger.Info("API gateway initialized")
 
 	// 设置路由

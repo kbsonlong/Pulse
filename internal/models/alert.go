@@ -3,6 +3,7 @@ package models
 import (
 	"time"
 	"errors"
+	"fmt"
 	"strings"
 	"encoding/json"
 )
@@ -90,23 +91,27 @@ type AlertCreateRequest struct {
 
 // AlertUpdateRequest 更新告警请求
 type AlertUpdateRequest struct {
-	Name        *string            `json:"name,omitempty" binding:"omitempty,min=1,max=200"`
-	Description *string            `json:"description,omitempty" binding:"omitempty,min=1,max=1000"`
-	Severity    *AlertSeverity     `json:"severity,omitempty"`
-	Status      *AlertStatus       `json:"status,omitempty"`
-	Labels      *map[string]string `json:"labels,omitempty"`
-	Annotations *map[string]string `json:"annotations,omitempty"`
-	Value       *float64           `json:"value,omitempty"`
-	Threshold   *float64           `json:"threshold,omitempty"`
+	Name         *string            `json:"name,omitempty" binding:"omitempty,min=1,max=200"`
+	Description  *string            `json:"description,omitempty" binding:"omitempty,min=1,max=1000"`
+	Severity     *AlertSeverity     `json:"severity,omitempty"`
+	Status       *AlertStatus       `json:"status,omitempty"`
+	Labels       map[string]string  `json:"labels,omitempty"`
+	Annotations  map[string]string  `json:"annotations,omitempty"`
+	Value        *float64           `json:"value,omitempty"`
+	Threshold    *float64           `json:"threshold,omitempty"`
+	Expression   *string            `json:"expression,omitempty"`
+	GeneratorURL *string            `json:"generator_url,omitempty"`
 }
 
 // AlertAckRequest 确认告警请求
 type AlertAckRequest struct {
+	UserID  string  `json:"user_id" binding:"required"`
 	Comment *string `json:"comment,omitempty" binding:"omitempty,max=500"`
 }
 
 // AlertResolveRequest 解决告警请求
 type AlertResolveRequest struct {
+	UserID  string  `json:"user_id" binding:"required"`
 	Comment *string `json:"comment,omitempty" binding:"omitempty,max=500"`
 }
 
@@ -300,6 +305,45 @@ func (a *Alert) GetDuration() time.Duration {
 		return a.EndsAt.Sub(a.StartsAt)
 	}
 	return time.Since(a.StartsAt)
+}
+
+// Validate 验证AlertUpdateRequest
+func (r *AlertUpdateRequest) Validate() error {
+	if r.Name != nil && (len(*r.Name) == 0 || len(*r.Name) > 200) {
+		return fmt.Errorf("告警名称长度必须在1-200字符之间")
+	}
+	if r.Description != nil && (len(*r.Description) == 0 || len(*r.Description) > 1000) {
+		return fmt.Errorf("告警描述长度必须在1-1000字符之间")
+	}
+	if r.Severity != nil && !r.Severity.IsValid() {
+		return fmt.Errorf("无效的告警严重级别")
+	}
+	if r.Status != nil && !r.Status.IsValid() {
+		return fmt.Errorf("无效的告警状态")
+	}
+	if r.Labels != nil && len(r.Labels) > 50 {
+		return fmt.Errorf("标签数量不能超过50个")
+	}
+	if r.Annotations != nil && len(r.Annotations) > 50 {
+		return fmt.Errorf("注释数量不能超过50个")
+	}
+	return nil
+}
+
+// Validate 验证确认告警请求
+func (req *AlertAckRequest) Validate() error {
+	if strings.TrimSpace(req.UserID) == "" {
+		return errors.New("用户ID不能为空")
+	}
+	return nil
+}
+
+// Validate 验证解决告警请求
+func (req *AlertResolveRequest) Validate() error {
+	if strings.TrimSpace(req.UserID) == "" {
+		return errors.New("用户ID不能为空")
+	}
+	return nil
 }
 
 // Validate 验证创建告警请求

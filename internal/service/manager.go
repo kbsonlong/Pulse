@@ -3,6 +3,7 @@ package service
 import (
 	"go.uber.org/zap"
 
+	"pulse/internal/config"
 	"pulse/internal/repository"
 )
 
@@ -39,18 +40,26 @@ type serviceManager struct {
 }
 
 // NewServiceManager 创建新的服务管理器
-func NewServiceManager(repoManager repository.RepositoryManager, logger *zap.Logger) ServiceManager {
+func NewServiceManager(repoManager repository.RepositoryManager, logger *zap.Logger, cfg *config.Config) ServiceManager {
+	// 初始化服务
+	alertService := NewAlertService(repoManager.Alert(), repoManager.User(), logger)
+	ruleService := NewRuleService(repoManager, logger)
+	dataSourceService := NewDataSourceService(repoManager, logger)
+	ticketService := NewTicketService(repoManager, logger)
+	knowledgeService := NewKnowledgeService(repoManager, logger)
+	notificationService := NewNotificationService(repoManager, logger)
+
 	return &serviceManager{
 		repoManager: repoManager,
 		logger:      logger,
-		alertService:        NewAlertService(repoManager, logger),
-		ruleService:         NewRuleService(repoManager, logger),
-		dataSourceService:   NewDataSourceService(repoManager, logger),
-		ticketService:       NewTicketService(repoManager, logger),
-		knowledgeService:    NewKnowledgeService(repoManager, logger),
-		userService:         NewUserService(repoManager, logger),
-		authService:         NewAuthService(repoManager, logger),
-		notificationService: NewNotificationService(repoManager, logger),
+		alertService:        alertService,
+		ruleService:         ruleService,
+		dataSourceService:   dataSourceService,
+		ticketService:       ticketService,
+		knowledgeService:    knowledgeService,
+		userService:         NewUserService(repoManager.User()),
+		authService:         NewAuthService(repoManager.User(), repoManager.Auth(), cfg.JWT.Secret),
+		notificationService: notificationService,
 		webhookService:      NewWebhookService(repoManager, logger),
 		configService:       NewConfigService(repoManager, logger),
 	}

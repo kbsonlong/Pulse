@@ -45,8 +45,17 @@ type Webhook struct {
 	UpdatedAt   time.Time     `json:"updated_at" db:"updated_at"`
 }
 
-// WebhookFilter Webhook过滤器
+// WebhookFilter Webhook查询过滤器
 type WebhookFilter struct {
+	Name      *string        `json:"name,omitempty"`
+	Status    *WebhookStatus `json:"status,omitempty"`
+	CreatedBy *uuid.UUID     `json:"created_by,omitempty"`
+	Page      int            `json:"page"`
+	PageSize  int            `json:"page_size"`
+}
+
+// WebhookRuleFilter Webhook规则过滤器
+type WebhookRuleFilter struct {
 	ID        uuid.UUID `json:"id" db:"id"`
 	WebhookID uuid.UUID `json:"webhook_id" db:"webhook_id"`
 	Field     string    `json:"field" db:"field"`
@@ -66,4 +75,40 @@ type WebhookLog struct {
 	Error      *string   `json:"error,omitempty" db:"error"`
 	Duration   int64     `json:"duration" db:"duration"` // 毫秒
 	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+}
+
+// WebhookList Webhook列表
+type WebhookList struct {
+	Webhooks []*Webhook `json:"webhooks"`
+	Total    int64      `json:"total"`
+	Page     int        `json:"page"`
+	PageSize int        `json:"page_size"`
+}
+
+// WebhookLogFilter Webhook日志过滤器
+type WebhookLogFilter struct {
+	WebhookID  *uuid.UUID    `json:"webhook_id,omitempty"`
+	Event      *WebhookEvent `json:"event,omitempty"`
+	StatusCode *int          `json:"status_code,omitempty"`
+	StartTime  *time.Time    `json:"start_time,omitempty"`
+	EndTime    *time.Time    `json:"end_time,omitempty"`
+	Page       int           `json:"page"`
+	PageSize   int           `json:"page_size"`
+}
+
+// WebhookLogList Webhook日志列表
+type WebhookLogList struct {
+	Logs     []*WebhookLog `json:"logs"`
+	Total    int64         `json:"total"`
+	Page     int           `json:"page"`
+	PageSize int           `json:"page_size"`
+}
+
+// WebhookStats Webhook统计信息
+type WebhookStats struct {
+	TotalRequests int64   `json:"total_requests"`
+	SuccessCount  int64   `json:"success_count"`
+	FailureCount  int64   `json:"failure_count"`
+	SuccessRate   float64 `json:"success_rate"`
+	AvgDuration   float64 `json:"avg_duration"`
 }

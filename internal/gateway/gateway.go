@@ -9,15 +9,17 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"pulse/internal/middleware"
+	"pulse/internal/service"
 )
 
 // Gateway API网关
 type Gateway struct {
-	logger      *logrus.Logger
-	router      *gin.Engine
-	redisClient *redis.Client
-	authService middleware.AuthService
-	rbacService middleware.RBACService
+	logger         *logrus.Logger
+	router         *gin.Engine
+	redisClient    *redis.Client
+	authService    middleware.AuthService
+	rbacService    middleware.RBACService
+	serviceManager service.ServiceManager
 }
 
 // GatewayConfig 网关配置
@@ -28,7 +30,7 @@ type GatewayConfig struct {
 }
 
 // NewGateway 创建新的API网关
-func NewGateway(logger *logrus.Logger, redisClient *redis.Client) *Gateway {
+func NewGateway(logger *logrus.Logger, redisClient *redis.Client, serviceManager service.ServiceManager) *Gateway {
 	// 设置Gin模式
 	gin.SetMode(gin.ReleaseMode)
 
@@ -42,11 +44,12 @@ func NewGateway(logger *logrus.Logger, redisClient *redis.Client) *Gateway {
 	rbacService := middleware.NewDefaultRBACService()
 
 	return &Gateway{
-		logger:      logger,
-		router:      router,
-		redisClient: redisClient,
-		authService: authService,
-		rbacService: rbacService,
+		logger:         logger,
+		router:         router,
+		redisClient:    redisClient,
+		authService:    authService,
+		rbacService:    rbacService,
+		serviceManager: serviceManager,
 	}
 }
 

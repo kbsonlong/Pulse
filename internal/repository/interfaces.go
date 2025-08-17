@@ -314,6 +314,50 @@ type KnowledgeRepository interface {
 	CleanupDrafts(ctx context.Context, before time.Time) (int64, error)
 }
 
+// WebhookRepository Webhook仓储接口
+type WebhookRepository interface {
+	// 基础CRUD操作
+	Create(ctx context.Context, webhook *models.Webhook) error
+	GetByID(ctx context.Context, id string) (*models.Webhook, error)
+	Update(ctx context.Context, webhook *models.Webhook) error
+	Delete(ctx context.Context, id string) error
+	SoftDelete(ctx context.Context, id string) error
+	
+	// 查询操作
+	List(ctx context.Context, filter *models.WebhookFilter) (*models.WebhookList, error)
+	Count(ctx context.Context, filter *models.WebhookFilter) (int64, error)
+	Exists(ctx context.Context, id string) (bool, error)
+	GetByURL(ctx context.Context, url string) (*models.Webhook, error)
+	
+	// Webhook状态管理
+	UpdateStatus(ctx context.Context, id string, status models.WebhookStatus) error
+	Enable(ctx context.Context, id string) error
+	Disable(ctx context.Context, id string) error
+	
+	// Webhook日志管理
+	CreateLog(ctx context.Context, log *models.WebhookLog) error
+	GetLogs(ctx context.Context, webhookID string, filter *models.WebhookLogFilter) (*models.WebhookLogList, error)
+	GetLogByID(ctx context.Context, id string) (*models.WebhookLog, error)
+	DeleteLogs(ctx context.Context, webhookID string, before time.Time) (int64, error)
+	
+	// Webhook统计
+	GetStats(ctx context.Context, webhookID string, start, end time.Time) (*models.WebhookStats, error)
+	IncrementSuccessCount(ctx context.Context, id string) error
+	IncrementFailureCount(ctx context.Context, id string) error
+	UpdateLastTriggered(ctx context.Context, id string) error
+	
+	// 批量操作
+	BatchCreate(ctx context.Context, webhooks []*models.Webhook) error
+	BatchUpdate(ctx context.Context, webhooks []*models.Webhook) error
+	BatchEnable(ctx context.Context, ids []string) error
+	BatchDisable(ctx context.Context, ids []string) error
+	BatchDelete(ctx context.Context, ids []string) error
+	
+	// 清理操作
+	CleanupLogs(ctx context.Context, before time.Time) (int64, error)
+	CleanupInactive(ctx context.Context, before time.Time) (int64, error)
+}
+
 // PermissionRepository 权限仓储接口
 type PermissionRepository interface {
 	// 权限检查
@@ -376,6 +420,7 @@ type RepositoryManager interface {
 	Knowledge() KnowledgeRepository
 	Permission() PermissionRepository
 	Auth() AuthRepository
+	Webhook() WebhookRepository
 
 	// 事务管理
 	BeginTx(ctx context.Context) (RepositoryManager, error)

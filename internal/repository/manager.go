@@ -22,6 +22,7 @@ type repositoryManager struct {
 	knowledgeRepo  KnowledgeRepository
 	permissionRepo PermissionRepository
 	authRepo       AuthRepository
+	webhookRepo    WebhookRepository
 }
 
 // NewRepositoryManager 创建新的仓储管理器
@@ -37,6 +38,7 @@ func NewRepositoryManager(db *sqlx.DB, encryptionService crypto.EncryptionServic
 		knowledgeRepo:  NewKnowledgeRepository(db),
 		permissionRepo: NewPermissionRepository(db),
 		authRepo:       NewAuthRepository(db),
+		webhookRepo:    NewWebhookRepository(db),
 	}
 }
 
@@ -78,6 +80,11 @@ func (r *repositoryManager) Permission() PermissionRepository {
 // Auth 获取认证仓储
 func (r *repositoryManager) Auth() AuthRepository {
 	return r.authRepo
+}
+
+// Webhook 获取Webhook仓储
+func (r *repositoryManager) Webhook() WebhookRepository {
+	return r.webhookRepo
 }
 
 // BeginTx 开始事务
