@@ -40,9 +40,9 @@ func (m *MockWebhookRepository) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func (m *MockWebhookRepository) List(ctx context.Context, filter *models.WebhookFilter) ([]*models.Webhook, int64, error) {
+func (m *MockWebhookRepository) List(ctx context.Context, filter *models.WebhookFilter) (*models.WebhookList, error) {
 	args := m.Called(ctx, filter)
-	return args.Get(0).([]*models.Webhook), args.Get(1).(int64), args.Error(2)
+	return args.Get(0).(*models.WebhookList), args.Error(1)
 }
 
 func (m *MockWebhookRepository) GetByName(ctx context.Context, name string) (*models.Webhook, error) {
@@ -58,8 +58,8 @@ func (m *MockWebhookRepository) UpdateStatus(ctx context.Context, id string, sta
 	return args.Error(0)
 }
 
-func (m *MockWebhookRepository) UpdateLastTriggered(ctx context.Context, id string, lastTriggered time.Time) error {
-	args := m.Called(ctx, id, lastTriggered)
+func (m *MockWebhookRepository) UpdateLastTriggered(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
@@ -70,6 +70,103 @@ func (m *MockWebhookRepository) BatchCreate(ctx context.Context, webhooks []*mod
 
 func (m *MockWebhookRepository) BatchDelete(ctx context.Context, ids []string) error {
 	args := m.Called(ctx, ids)
+	return args.Error(0)
+}
+
+func (m *MockWebhookRepository) BatchDisable(ctx context.Context, ids []string) error {
+	args := m.Called(ctx, ids)
+	return args.Error(0)
+}
+
+func (m *MockWebhookRepository) BatchEnable(ctx context.Context, ids []string) error {
+	args := m.Called(ctx, ids)
+	return args.Error(0)
+}
+
+func (m *MockWebhookRepository) BatchUpdate(ctx context.Context, webhooks []*models.Webhook) error {
+	args := m.Called(ctx, webhooks)
+	return args.Error(0)
+}
+
+func (m *MockWebhookRepository) CleanupInactive(ctx context.Context, before time.Time) (int64, error) {
+	args := m.Called(ctx, before)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockWebhookRepository) CleanupLogs(ctx context.Context, before time.Time) (int64, error) {
+	args := m.Called(ctx, before)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockWebhookRepository) Count(ctx context.Context, filter *models.WebhookFilter) (int64, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockWebhookRepository) CreateLog(ctx context.Context, log *models.WebhookLog) error {
+	args := m.Called(ctx, log)
+	return args.Error(0)
+}
+
+func (m *MockWebhookRepository) DeleteLogs(ctx context.Context, webhookID string, before time.Time) (int64, error) {
+	args := m.Called(ctx, webhookID, before)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+// Disable 禁用Webhook
+func (m *MockWebhookRepository) Disable(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+// Enable 启用Webhook
+func (m *MockWebhookRepository) Enable(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+// Exists 检查Webhook是否存在
+func (m *MockWebhookRepository) Exists(ctx context.Context, id string) (bool, error) {
+	args := m.Called(ctx, id)
+	return args.Bool(0), args.Error(1)
+}
+
+// GetByURL 根据URL获取Webhook
+func (m *MockWebhookRepository) GetByURL(ctx context.Context, url string) (*models.Webhook, error) {
+	args := m.Called(ctx, url)
+	return args.Get(0).(*models.Webhook), args.Error(1)
+}
+
+// GetLogByID 根据ID获取Webhook日志
+func (m *MockWebhookRepository) GetLogByID(ctx context.Context, id string) (*models.WebhookLog, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(*models.WebhookLog), args.Error(1)
+}
+
+// GetLogs 获取Webhook日志列表
+func (m *MockWebhookRepository) GetLogs(ctx context.Context, webhookID string, filter *models.WebhookLogFilter) (*models.WebhookLogList, error) {
+	args := m.Called(ctx, webhookID, filter)
+	return args.Get(0).(*models.WebhookLogList), args.Error(1)
+}
+
+// GetStats 获取Webhook统计信息
+func (m *MockWebhookRepository) GetStats(ctx context.Context, webhookID string, startTime, endTime time.Time) (*models.WebhookStats, error) {
+	args := m.Called(ctx, webhookID, startTime, endTime)
+	return args.Get(0).(*models.WebhookStats), args.Error(1)
+}
+
+func (m *MockWebhookRepository) IncrementFailureCount(ctx context.Context, webhookID string) error {
+	args := m.Called(ctx, webhookID)
+	return args.Error(0)
+}
+
+func (m *MockWebhookRepository) IncrementSuccessCount(ctx context.Context, webhookID string) error {
+	args := m.Called(ctx, webhookID)
+	return args.Error(0)
+}
+
+func (m *MockWebhookRepository) SoftDelete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 

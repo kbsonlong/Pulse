@@ -40,9 +40,9 @@ func (m *MockRuleRepository) GetByName(ctx context.Context, name string) (*model
 	return args.Get(0).(*models.Rule), args.Error(1)
 }
 
-func (m *MockRuleRepository) List(ctx context.Context, filter *models.RuleFilter) ([]*models.Rule, int64, error) {
+func (m *MockRuleRepository) List(ctx context.Context, filter *models.RuleFilter) (*models.RuleList, error) {
 	args := m.Called(ctx, filter)
-	return args.Get(0).([]*models.Rule), args.Get(1).(int64), args.Error(2)
+	return args.Get(0).(*models.RuleList), args.Error(1)
 }
 
 func (m *MockRuleRepository) Update(ctx context.Context, rule *models.Rule) error {
@@ -132,6 +132,49 @@ func (m *MockRuleRepository) Enable(ctx context.Context, id string) error {
 func (m *MockRuleRepository) Exists(ctx context.Context, id string) (bool, error) {
 	args := m.Called(ctx, id)
 	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockRuleRepository) GetActiveCount(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockRuleRepository) GetErrorCount(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockRuleRepository) GetRulesForEvaluation(ctx context.Context) ([]*models.Rule, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]*models.Rule), args.Error(1)
+}
+
+func (m *MockRuleRepository) GetStats(ctx context.Context, filter *models.RuleFilter) (*models.RuleStats, error) {
+	args := m.Called(ctx, filter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.RuleStats), args.Error(1)
+}
+
+func (m *MockRuleRepository) IncrementAlertCount(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockRuleRepository) IncrementEvaluationCount(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockRuleRepository) SetTesting(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockRuleRepository) UpdateLastEvaluation(ctx context.Context, id string, evalTime time.Time, result bool, error string) error {
+	args := m.Called(ctx, id, evalTime, result, error)
+	return args.Error(0)
 }
 
 // MockRuleRepositoryManager 模拟仓储管理器
