@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Table,
@@ -11,139 +11,199 @@ import {
   Row,
   Col,
   Tabs,
-  Avatar,
-  Typography,
+  Badge,
   Tooltip,
+  message,
+  Popconfirm
 } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
   ReloadOutlined,
-  EyeOutlined,
   EditOutlined,
-  UserOutlined,
+  DeleteOutlined,
+  EyeOutlined,
+  ClockCircleOutlined,
+  UserOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { useTicket, useUI } from '../../hooks';
-import { Ticket, TicketStatus, TicketPriority } from '../../types';
-import { formatDateTime } from '../../utils/date';
+import { format } from 'date-fns';
+import { useTicket } from '../../hooks/useTicket';
+import { useUI } from '../../hooks/useUI';
+import { ticketService } from '../../services/ticket';
+import type { Ticket, TicketStatus, TicketPriority } from '../../types';
 import type { ColumnsType } from 'antd/es/table';
-import type { TabsProps } from 'antd';
 
 const { RangePicker } = DatePicker;
-const { Option } = Select;
-const { Text } = Typography;
+const { TabPane } = Tabs;
+
+interface TicketQuery {
+  page: number;
+  limit: number;
+  status?: TicketStatus[];
+  priority?: TicketPriority[];
+  search?: string;
+  start_time?: string;
+  end_time?: string;
+}
 
 const MyTickets: React.FC = () => {
   const navigate = useNavigate();
-  const { setBreadcrumbs } = useUI();
-  const {
-    tickets,
-    loading,
-    pagination,
-    filters,
-    fetchTickets,
-    setFilters,
-    setPage,
-    setLimit,
-  } = useTicket();
-
-  const [searchText, setSearchText] = useState('');
+  const { loading, setLoading } = useUI();
+  
+  const [assignedTickets, setAssignedTickets] = useState<Ticket[]>([]);
+  const [createdTickets, setCreatedTickets] = useState<Ticket[]>([]);
+  const [assignedTotal, setAssignedTotal] = useState(0);
+  const [createdTotal, setCreatedTotal] = useState(0);
   const [activeTab, setActiveTab] = useState('assigned');
+  
+  const [query, setQuery] = useState<TicketQuery>({
+    page: 1,
+    limit: 10
+  });
+
+  // 加载分配给我的工单
+  const loadAssignedTickets = async () => {
+    try {
+      setLoading(true);
+      const response = await ticketService.getMyTickets(query);
+      setAssignedTickets(response.tickets);
+      setAssignedTotal(response.total);
+    } catch (error) {
+      message.error('加载工单失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 加载我创建的工单
+  const loadCreatedTickets = async () => {
+    try {
+      setLoading(true);
+      const response = await ticketService.getMyCreatedTickets(query);
+      setCreatedTickets(response.tickets);
+      setCreatedTotal(response.total);
+    } catch (error) {
+      message.error('加载工单失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setBreadcrumbs([
-      { title: '工单管理' },
-      { title: '我的工单' },
-    ]);
-
-    // 根据当前标签页设置不同的筛选条件
-    handleTabChange(activeTab);
-  }, [setBreadcrumbs]);
-
-  // 标签页切换
-  const handleTabChange = (key: string) => {
-    setActiveTab(key);
-    const newFilters = { ...filters };
-    
-    // 清除之前的筛选条件
-    delete newFilters.assignee_id;
-    delete newFilters.creator_id;
-    
-    if (key === 'assigned') {
-      // 分配给我的工单
-      newFilters.assignee_id = 'current_user'; // 后端会识别这个特殊值
-    } else if (key === 'created') {
-      // 我创建的工单
-      newFilters.creator_id = 'current_user'; // 后端会识别这个特殊值
+    if (activeTab === 'assigned') {
+      loadAssignedTickets();
+    } else {
+      loadCreatedTickets();
     }
-    
-    setFilters(newFilters);
-    setPage(1);
+  }, [query, activeTab]);
+
+  // 处理搜索
+  const handleSearch = (value: string) => {
+    setQuery(prev => ({ ...prev, search: value, page: 1 }));
   };
 
-  // 搜索
-  const handleSearch = () => {
-    setFilters({
-      ...filters,
-      search: searchText,
-    });
-    setPage(1);
+  // 处理筛选
+  const handleFilter = (key: string, value: any) => {
+    setQuery(prev => ({ ...prev, [key]: value, page: 1 }));
   };
 
-  // 重置搜索
-  const handleReset = () => {
-    setSearchText('');
-    setFilters({});
-    setPage(1);
-    handleTabChange(activeTab); // 重新应用标签页筛选
+  // 处理日期范围筛选
+  const handleDateRangeChange = (dates: any) => {
+    if (dates && dates.length === 2) {
+      setQuery(prev => ({
+        ...prev,
+        start_time: dates[0].toISOString(),
+        end_time: dates[1].toISOString(),
+        page: 1
+      }));
+    } else {
+      setQuery(prev => {
+        const { start_time, end_time, ...rest } = prev;
+        return { ...rest, page: 1 };
+      });
+    }
   };
 
-  // 刷新数据
-  const handleRefresh = () => {
-    fetchTickets();
+  // 处理分页
+  const handleTableChange = (pagination: any) => {
+    setQuery(prev => ({
+      ...prev,
+      page: pagination.current,
+      limit: pagination.pageSize
+    }));
   };
 
-  // 查看详情
-  const handleView = (record: Ticket) => {
-    navigate(`/tickets/detail/${record.id}`);
+  // 快速更新状态
+  const handleQuickStatusUpdate = async (id: string, status: TicketStatus) => {
+    try {
+      await ticketService.updateTicketStatus(id, status);
+      message.success('状态更新成功');
+      if (activeTab === 'assigned') {
+        loadAssignedTickets();
+      } else {
+        loadCreatedTickets();
+      }
+    } catch (error) {
+      message.error('状态更新失败');
+    }
   };
 
-  // 编辑工单
-  const handleEdit = (record: Ticket) => {
-    navigate(`/tickets/edit/${record.id}`);
+  // 删除工单
+  const handleDelete = async (id: string) => {
+    try {
+      await ticketService.deleteTicket(id);
+      message.success('工单删除成功');
+      if (activeTab === 'assigned') {
+        loadAssignedTickets();
+      } else {
+        loadCreatedTickets();
+      }
+    } catch (error) {
+      message.error('工单删除失败');
+    }
   };
 
-  // 创建工单
-  const handleCreate = () => {
-    navigate('/tickets/create');
-  };
-
-  // 获取状态标签
-  const getStatusTag = (status: TicketStatus) => {
-    const statusConfig = {
-      open: { color: 'blue', text: '待处理' },
-      in_progress: { color: 'orange', text: '处理中' },
-      resolved: { color: 'green', text: '已解决' },
-      closed: { color: 'default', text: '已关闭' },
+  const getStatusColor = (status: TicketStatus) => {
+    const colors = {
+      open: 'blue',
+      in_progress: 'orange',
+      resolved: 'green',
+      closed: 'gray'
     };
-    const config = statusConfig[status];
-    return <Tag color={config.color}>{config.text}</Tag>;
+    return colors[status] || 'default';
   };
 
-  // 获取优先级标签
-  const getPriorityTag = (priority: TicketPriority) => {
-    const priorityConfig = {
-      low: { color: 'blue', text: '低' },
-      medium: { color: 'yellow', text: '中' },
-      high: { color: 'orange', text: '高' },
-      critical: { color: 'red', text: '紧急' },
+  const getPriorityColor = (priority: TicketPriority) => {
+    const colors = {
+      low: 'green',
+      medium: 'orange',
+      high: 'red',
+      urgent: 'purple'
     };
-    const config = priorityConfig[priority];
-    return <Tag color={config.color}>{config.text}</Tag>;
+    return colors[priority] || 'default';
   };
 
-  // 表格列定义
+  const getStatusText = (status: TicketStatus) => {
+    const texts = {
+      open: '待处理',
+      in_progress: '处理中',
+      resolved: '已解决',
+      closed: '已关闭'
+    };
+    return texts[status] || status;
+  };
+
+  const getPriorityText = (priority: TicketPriority) => {
+    const texts = {
+      low: '低',
+      medium: '中',
+      high: '高',
+      urgent: '紧急'
+    };
+    return texts[priority] || priority;
+  };
+
   const columns: ColumnsType<Ticket> = [
     {
       title: 'ID',
@@ -151,213 +211,293 @@ const MyTickets: React.FC = () => {
       key: 'id',
       width: 80,
       render: (id: string) => (
-        <Text code style={{ fontSize: '12px' }}>
-          {id.slice(0, 8)}
-        </Text>
-      ),
+        <Button
+          type="link"
+          onClick={() => navigate(`/tickets/${id}`)}
+        >
+          #{id.slice(-6)}
+        </Button>
+      )
     },
     {
       title: '标题',
       dataIndex: 'title',
       key: 'title',
-      ellipsis: {
-        showTitle: false,
-      },
-      render: (title: string) => (
-        <Tooltip placement="topLeft" title={title}>
-          {title}
+      ellipsis: true,
+      render: (title: string, record: Ticket) => (
+        <Tooltip title={title}>
+          <Button
+            type="link"
+            onClick={() => navigate(`/tickets/${record.id}`)}
+            style={{ padding: 0, height: 'auto' }}
+          >
+            {title}
+          </Button>
         </Tooltip>
-      ),
+      )
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
       width: 100,
-      render: (status: TicketStatus) => getStatusTag(status),
+      render: (status: TicketStatus, record: Ticket) => (
+        <Select
+          value={status}
+          size="small"
+          style={{ width: '100%' }}
+          onChange={(newStatus) => handleQuickStatusUpdate(record.id, newStatus)}
+        >
+          <Select.Option value="open">
+            <Tag color="blue">待处理</Tag>
+          </Select.Option>
+          <Select.Option value="in_progress">
+            <Tag color="orange">处理中</Tag>
+          </Select.Option>
+          <Select.Option value="resolved">
+            <Tag color="green">已解决</Tag>
+          </Select.Option>
+          <Select.Option value="closed">
+            <Tag color="gray">已关闭</Tag>
+          </Select.Option>
+        </Select>
+      )
     },
     {
       title: '优先级',
       dataIndex: 'priority',
       key: 'priority',
-      width: 100,
-      render: (priority: TicketPriority) => getPriorityTag(priority),
+      width: 80,
+      render: (priority: TicketPriority) => (
+        <Tag color={getPriorityColor(priority)}>
+          {getPriorityText(priority)}
+        </Tag>
+      )
     },
     {
-      title: '创建人',
-      dataIndex: 'creator',
-      key: 'creator',
+      title: activeTab === 'assigned' ? '创建人' : '分配给',
+      key: 'user',
       width: 120,
-      render: (creator: any) => (
-        <Space>
-          <Avatar size="small" icon={<UserOutlined />} />
-          <Text>{creator?.username}</Text>
-        </Space>
-      ),
-    },
-    {
-      title: '分配人',
-      dataIndex: 'assignee',
-      key: 'assignee',
-      width: 120,
-      render: (assignee: any) => (
-        assignee ? (
+      render: (_, record: Ticket) => {
+        const user = activeTab === 'assigned' ? record.created_by : record.assigned_to;
+        return user ? (
           <Space>
-            <Avatar size="small" icon={<UserOutlined />} />
-            <Text>{assignee.username}</Text>
+            <UserOutlined />
+            <span>{user}</span>
           </Space>
         ) : (
-          <Text type="secondary">未分配</Text>
-        )
-      ),
+          <span style={{ color: '#999' }}>未分配</span>
+        );
+      }
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 180,
-      render: (date: string) => formatDateTime(date),
+      width: 150,
+      render: (date: string) => (
+        <Space>
+          <ClockCircleOutlined />
+          {format(new Date(date), 'MM-dd HH:mm')}
+        </Space>
+      )
+    },
+    {
+      title: '截止时间',
+      dataIndex: 'due_date',
+      key: 'due_date',
+      width: 150,
+      render: (date: string) => {
+        if (!date) return <span style={{ color: '#999' }}>无</span>;
+        
+        const dueDate = new Date(date);
+        const now = new Date();
+        const isOverdue = dueDate < now;
+        
+        return (
+          <Space>
+            <ClockCircleOutlined style={{ color: isOverdue ? '#ff4d4f' : undefined }} />
+            <span style={{ color: isOverdue ? '#ff4d4f' : undefined }}>
+              {format(dueDate, 'MM-dd HH:mm')}
+            </span>
+            {isOverdue && <Badge status="error" text="逾期" />}
+          </Space>
+        );
+      }
     },
     {
       title: '操作',
-      key: 'action',
-      width: 120,
-      render: (_, record) => (
-        <Space size="small">
+      key: 'actions',
+      width: 150,
+      render: (_, record: Ticket) => (
+        <Space>
           <Tooltip title="查看详情">
             <Button
               type="text"
-              size="small"
               icon={<EyeOutlined />}
-              onClick={() => handleView(record)}
+              onClick={() => navigate(`/tickets/${record.id}`)}
             />
           </Tooltip>
           <Tooltip title="编辑">
             <Button
               type="text"
-              size="small"
               icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
+              onClick={() => navigate(`/tickets/${record.id}/edit`)}
             />
           </Tooltip>
+          {activeTab === 'created' && (
+            <Tooltip title="删除">
+              <Popconfirm
+                title="确定要删除这个工单吗？"
+                onConfirm={() => handleDelete(record.id)}
+                okText="确定"
+                cancelText="取消"
+              >
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                />
+              </Popconfirm>
+            </Tooltip>
+          )}
         </Space>
-      ),
-    },
+      )
+    }
   ];
 
-  // 标签页配置
-  const tabItems: TabsProps['items'] = [
-    {
-      key: 'assigned',
-      label: '分配给我的',
-    },
-    {
-      key: 'created',
-      label: '我创建的',
-    },
-  ];
+  const renderFilters = () => (
+    <Row gutter={16} style={{ marginBottom: '16px' }}>
+      <Col span={6}>
+        <Input.Search
+          placeholder="搜索工单标题或描述"
+          allowClear
+          onSearch={handleSearch}
+          style={{ width: '100%' }}
+        />
+      </Col>
+      <Col span={4}>
+        <Select
+          placeholder="状态筛选"
+          allowClear
+          mode="multiple"
+          style={{ width: '100%' }}
+          onChange={(value) => handleFilter('status', value)}
+        >
+          <Select.Option value="open">待处理</Select.Option>
+          <Select.Option value="in_progress">处理中</Select.Option>
+          <Select.Option value="resolved">已解决</Select.Option>
+          <Select.Option value="closed">已关闭</Select.Option>
+        </Select>
+      </Col>
+      <Col span={4}>
+        <Select
+          placeholder="优先级筛选"
+          allowClear
+          mode="multiple"
+          style={{ width: '100%' }}
+          onChange={(value) => handleFilter('priority', value)}
+        >
+          <Select.Option value="low">低</Select.Option>
+          <Select.Option value="medium">中</Select.Option>
+          <Select.Option value="high">高</Select.Option>
+          <Select.Option value="urgent">紧急</Select.Option>
+        </Select>
+      </Col>
+      <Col span={6}>
+        <RangePicker
+          style={{ width: '100%' }}
+          placeholder={['开始时间', '结束时间']}
+          onChange={handleDateRangeChange}
+        />
+      </Col>
+      <Col span={4}>
+        <Space>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              if (activeTab === 'assigned') {
+                loadAssignedTickets();
+              } else {
+                loadCreatedTickets();
+              }
+            }}
+          >
+            刷新
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/tickets/create')}
+          >
+            创建工单
+          </Button>
+        </Space>
+      </Col>
+    </Row>
+  );
 
   return (
     <div style={{ padding: '24px' }}>
       <Card>
-        <div style={{ marginBottom: '16px' }}>
-          <Row gutter={[16, 16]}>
-            <Col span={8}>
-              <Input
-                placeholder="搜索工单标题或描述"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                onPressEnter={handleSearch}
-                suffix={<SearchOutlined />}
-              />
-            </Col>
-            <Col span={4}>
-              <Select
-                placeholder="状态"
-                allowClear
-                style={{ width: '100%' }}
-                value={filters.status}
-                onChange={(value) => setFilters({ ...filters, status: value })}
-              >
-                <Option value="open">待处理</Option>
-                <Option value="in_progress">处理中</Option>
-                <Option value="resolved">已解决</Option>
-                <Option value="closed">已关闭</Option>
-              </Select>
-            </Col>
-            <Col span={4}>
-              <Select
-                placeholder="优先级"
-                allowClear
-                style={{ width: '100%' }}
-                value={filters.priority}
-                onChange={(value) => setFilters({ ...filters, priority: value })}
-              >
-                <Option value="low">低</Option>
-                <Option value="medium">中</Option>
-                <Option value="high">高</Option>
-                <Option value="critical">紧急</Option>
-              </Select>
-            </Col>
-            <Col span={8}>
-              <Space>
-                <Button
-                  type="primary"
-                  icon={<SearchOutlined />}
-                  onClick={handleSearch}
-                >
-                  搜索
-                </Button>
-                <Button onClick={handleReset}>
-                  重置
-                </Button>
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={handleRefresh}
-                >
-                  刷新
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={handleCreate}
-                >
-                  创建工单
-                </Button>
-              </Space>
-            </Col>
-          </Row>
-        </div>
-
         <Tabs
           activeKey={activeTab}
-          onChange={handleTabChange}
-          items={tabItems}
-          style={{ marginBottom: '16px' }}
-        />
-
-        <Table
-          columns={columns}
-          dataSource={tickets}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            current: pagination.page,
-            pageSize: pagination.limit,
-            total: pagination.total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) =>
-              `第 ${range[0]}-${range[1]} 条/共 ${total} 条`,
-            onChange: (page, pageSize) => {
-              setPage(page);
-              if (pageSize !== pagination.limit) {
-                setLimit(pageSize);
-              }
-            },
-          }}
-          scroll={{ x: 1200 }}
-        />
+          onChange={setActiveTab}
+          tabBarExtraContent={renderFilters()}
+        >
+          <TabPane
+            tab={
+              <Badge count={assignedTotal} offset={[10, 0]}>
+                <span>分配给我的</span>
+              </Badge>
+            }
+            key="assigned"
+          >
+            <Table
+              columns={columns}
+              dataSource={assignedTickets}
+              rowKey="id"
+              loading={loading}
+              pagination={{
+                current: query.page,
+                pageSize: query.limit,
+                total: assignedTotal,
+                showSizeChanger: true,
+                showQuickJumper: true,
+                showTotal: (total, range) =>
+                  `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
+              }}
+              onChange={handleTableChange}
+              scroll={{ x: 1200 }}
+            />
+          </TabPane>
+          <TabPane
+            tab={
+              <Badge count={createdTotal} offset={[10, 0]}>
+                <span>我创建的</span>
+              </Badge>
+            }
+            key="created"
+          >
+            <Table
+              columns={columns}
+              dataSource={createdTickets}
+              rowKey="id"
+              loading={loading}
+              pagination={{
+                current: query.page,
+                pageSize: query.limit,
+                total: createdTotal,
+                showSizeChanger: true,
+                showQuickJumper: true,
+                showTotal: (total, range) =>
+                  `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
+              }}
+              onChange={handleTableChange}
+              scroll={{ x: 1200 }}
+            />
+          </TabPane>
+        </Tabs>
       </Card>
     </div>
   );

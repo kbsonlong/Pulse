@@ -1,406 +1,512 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
-  Descriptions,
+  Row,
+  Col,
   Button,
   Space,
   Tag,
+  Descriptions,
   Timeline,
   Modal,
   Form,
   Input,
   Select,
   message,
+  Spin,
   Divider,
-  Row,
-  Col,
   Avatar,
   Typography,
+  Upload,
+  List,
   Popconfirm,
+  Badge
 } from 'antd';
 import {
+  ArrowLeftOutlined,
   EditOutlined,
   DeleteOutlined,
   UserOutlined,
   ClockCircleOutlined,
-  CheckCircleOutlined,
-  ExclamationCircleOutlined,
+  FileTextOutlined,
+  PaperClipOutlined,
+  SendOutlined,
+  UploadOutlined
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useTicket, useUI } from '../../hooks';
-import { TicketStatus, TicketPriority, ProcessRecord } from '../../types';
-import { formatDateTime } from '../../utils/date';
+import { format } from 'date-fns';
+import { useTicket } from '../../hooks/useTicket';
+import { useUI } from '../../hooks/useUI';
+import { ticketService } from '../../services/ticket';
+import { userService } from '../../services/user';
+import type { Ticket, TicketStatus, TicketPriority, ProcessRecord } from '../../types';
+import type { UploadFile } from 'antd';
 
 const { TextArea } = Input;
-const { Option } = Select;
-const { Title, Text } = Typography;
+const { Text, Title } = Typography;
 
-interface ProcessRecordForm {
-  content: string;
-  status?: TicketStatus;
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  avatar?: string;
 }
 
 const TicketDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { setBreadcrumbs } = useUI();
-  const {
-    currentTicket,
-    processRecords,
-    loading,
-    fetchTicket,
-    updateTicketStatus,
-    assignTicket,
-    deleteTicket,
-    fetchProcessRecords,
-    addProcessRecord,
-  } = useTicket();
-
-  const [form] = Form.useForm<ProcessRecordForm>();
-  const [processModalVisible, setProcessModalVisible] = useState(false);
-  const [assignModalVisible, setAssignModalVisible] = useState(false);
+  const [form] = Form.useForm();
+  
+  const { loading, setLoading } = useUI();
+  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [processRecords, setProcessRecords] = useState<ProcessRecord[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [statusModalVisible, setStatusModalVisible] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [assignModalVisible, setAssignModalVisible] = useState(false);
+  const [commentModalVisible, setCommentModalVisible] = useState(false);
+  const [attachments, setAttachments] = useState<UploadFile[]>([]);
+
+  // 加载工单详情
+  const loadTicket = async () => {
+    if (!id) return;
+    
+    try {
+      setLoading(true);
+      const [ticketData, recordsData] = await Promise.all([
+        ticketService.getTicket(id),
+        ticketService.getProcessRecords(id)
+      ]);
+      
+      setTicket(ticketData);
+      setProcessRecords(recordsData);
+    } catch (error) {
+      message.error('加载工单详情失败');
+      navigate('/tickets');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 加载用户列表
+  const loadUsers = async () => {
+    try {
+      const response = await userService.getUsers({ page: 1, limit: 100 });
+      setUsers(response.users);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    }
+  };
 
   useEffect(() => {
-    setBreadcrumbs([
-      { title: '工单管理' },
-      { title: '工单列表', path: '/tickets/list' },
-      { title: '工单详情' },
-    ]);
+    loadTicket();
+    loadUsers();
+  }, [id]);
 
-    if (id) {
-      fetchTicket(id);
-      fetchProcessRecords(id);
+  // 更新工单状态
+  const handleStatusUpdate = async (values: { status: TicketStatus; comment?: string }) => {
+    if (!id) return;
+    
+    try {
+      await ticketService.updateTicketStatus(id, values.status);
+      
+      if (values.comment) {
+        await ticketService.addProcessRecord(id, {
+          action: 'status_change',
+          comment: values.comment,
+          attachments: attachments.map(file => file.name)
+        });
+      }
+      
+      message.success('状态更新成功');
+      setStatusModalVisible(false);
+      form.resetFields();
+      setAttachments([]);
+      loadTicket();
+    } catch (error) {
+      message.error('状态更新失败');
     }
-  }, [setBreadcrumbs, id, fetchTicket, fetchProcessRecords]);
-
-  // 获取状态标签
-  const getStatusTag = (status: TicketStatus) => {
-    const statusConfig = {
-      open: { color: 'blue', text: '待处理' },
-      in_progress: { color: 'orange', text: '处理中' },
-      resolved: { color: 'green', text: '已解决' },
-      closed: { color: 'default', text: '已关闭' },
-    };
-    const config = statusConfig[status];
-    return <Tag color={config.color}>{config.text}</Tag>;
   };
 
-  // 获取优先级标签
-  const getPriorityTag = (priority: TicketPriority) => {
-    const priorityConfig = {
-      low: { color: 'blue', text: '低' },
-      medium: { color: 'yellow', text: '中' },
-      high: { color: 'orange', text: '高' },
-      critical: { color: 'red', text: '紧急' },
-    };
-    const config = priorityConfig[priority];
-    return <Tag color={config.color}>{config.text}</Tag>;
+  // 分配工单
+  const handleAssign = async (values: { assigned_to: string; comment?: string }) => {
+    if (!id) return;
+    
+    try {
+      await ticketService.assignTicket(id, values.assigned_to);
+      
+      if (values.comment) {
+        await ticketService.addProcessRecord(id, {
+          action: 'assign',
+          comment: values.comment
+        });
+      }
+      
+      message.success('分配成功');
+      setAssignModalVisible(false);
+      form.resetFields();
+      loadTicket();
+    } catch (error) {
+      message.error('分配失败');
+    }
   };
 
-  // 编辑工单
-  const handleEdit = () => {
-    navigate(`/tickets/edit/${id}`);
+  // 添加处理记录
+  const handleAddComment = async (values: { comment: string }) => {
+    if (!id) return;
+    
+    try {
+      await ticketService.addProcessRecord(id, {
+        action: 'comment',
+        comment: values.comment,
+        attachments: attachments.map(file => file.name)
+      });
+      
+      message.success('评论添加成功');
+      setCommentModalVisible(false);
+      form.resetFields();
+      setAttachments([]);
+      loadTicket();
+    } catch (error) {
+      message.error('评论添加失败');
+    }
   };
 
   // 删除工单
   const handleDelete = async () => {
     if (!id) return;
+    
     try {
-      await deleteTicket(id);
+      await ticketService.deleteTicket(id);
       message.success('工单删除成功');
-      navigate('/tickets/list');
+      navigate('/tickets');
     } catch (error) {
       message.error('工单删除失败');
     }
   };
 
-  // 更新状态
-  const handleUpdateStatus = async (values: { status: TicketStatus }) => {
-    if (!id) return;
-    setSubmitting(true);
-    try {
-      await updateTicketStatus(id, values.status);
-      message.success('状态更新成功');
-      setStatusModalVisible(false);
-    } catch (error) {
-      message.error('状态更新失败');
-    } finally {
-      setSubmitting(false);
-    }
+  const getStatusColor = (status: TicketStatus) => {
+    const colors = {
+      open: 'blue',
+      in_progress: 'orange',
+      resolved: 'green',
+      closed: 'gray'
+    };
+    return colors[status] || 'default';
   };
 
-  // 分配工单
-  const handleAssign = async (values: { assignee_id: string }) => {
-    if (!id) return;
-    setSubmitting(true);
-    try {
-      await assignTicket(id, values.assignee_id);
-      message.success('工单分配成功');
-      setAssignModalVisible(false);
-    } catch (error) {
-      message.error('工单分配失败');
-    } finally {
-      setSubmitting(false);
-    }
+  const getPriorityColor = (priority: TicketPriority) => {
+    const colors = {
+      low: 'green',
+      medium: 'orange',
+      high: 'red',
+      urgent: 'purple'
+    };
+    return colors[priority] || 'default';
   };
 
-  // 添加处理记录
-  const handleAddProcessRecord = async (values: ProcessRecordForm) => {
-    if (!id) return;
-    setSubmitting(true);
-    try {
-      await addProcessRecord(id, values);
-      message.success('处理记录添加成功');
-      setProcessModalVisible(false);
-      form.resetFields();
-    } catch (error) {
-      message.error('处理记录添加失败');
-    } finally {
-      setSubmitting(false);
-    }
+  const getStatusText = (status: TicketStatus) => {
+    const texts = {
+      open: '待处理',
+      in_progress: '处理中',
+      resolved: '已解决',
+      closed: '已关闭'
+    };
+    return texts[status] || status;
   };
 
-  // 获取时间线图标
-  const getTimelineIcon = (record: ProcessRecord) => {
-    if (record.status) {
-      switch (record.status) {
-        case 'resolved':
-          return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
-        case 'closed':
-          return <CheckCircleOutlined style={{ color: '#8c8c8c' }} />;
-        case 'in_progress':
-          return <ClockCircleOutlined style={{ color: '#faad14' }} />;
-        default:
-          return <ExclamationCircleOutlined style={{ color: '#1890ff' }} />;
-      }
-    }
-    return <ClockCircleOutlined style={{ color: '#8c8c8c' }} />;
+  const getPriorityText = (priority: TicketPriority) => {
+    const texts = {
+      low: '低',
+      medium: '中',
+      high: '高',
+      urgent: '紧急'
+    };
+    return texts[priority] || priority;
   };
 
-  if (!currentTicket) {
-    return <div>工单不存在</div>;
+  const getActionText = (action: string) => {
+    const texts = {
+      create: '创建',
+      status_change: '状态变更',
+      assign: '分配',
+      comment: '评论',
+      update: '更新'
+    };
+    return texts[action] || action;
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!ticket) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Text>工单不存在</Text>
+      </div>
+    );
   }
 
   return (
     <div style={{ padding: '24px' }}>
-      <Row gutter={24}>
-        <Col span={16}>
-          <Card
-            title={`工单详情 - ${currentTicket.title}`}
-            extra={
-              <Space>
+      {/* 头部操作栏 */}
+      <Card style={{ marginBottom: '24px' }}>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Space>
+              <Button
+                icon={<ArrowLeftOutlined />}
+                onClick={() => navigate('/tickets')}
+              >
+                返回
+              </Button>
+              <Title level={3} style={{ margin: 0 }}>
+                工单详情 #{ticket.id}
+              </Title>
+              <Tag color={getStatusColor(ticket.status)}>
+                {getStatusText(ticket.status)}
+              </Tag>
+              <Tag color={getPriorityColor(ticket.priority)}>
+                {getPriorityText(ticket.priority)}
+              </Tag>
+            </Space>
+          </Col>
+          <Col>
+            <Space>
+              <Button
+                type="primary"
+                onClick={() => setStatusModalVisible(true)}
+              >
+                更新状态
+              </Button>
+              <Button
+                onClick={() => setAssignModalVisible(true)}
+              >
+                分配工单
+              </Button>
+              <Button
+                icon={<EditOutlined />}
+                onClick={() => navigate(`/tickets/${id}/edit`)}
+              >
+                编辑
+              </Button>
+              <Popconfirm
+                title="确定要删除这个工单吗？"
+                onConfirm={handleDelete}
+                okText="确定"
+                cancelText="取消"
+              >
                 <Button
-                  type="primary"
-                  icon={<EditOutlined />}
-                  onClick={handleEdit}
+                  danger
+                  icon={<DeleteOutlined />}
                 >
-                  编辑
+                  删除
                 </Button>
-                <Popconfirm
-                  title="确定要删除这个工单吗？"
-                  onConfirm={handleDelete}
-                  okText="确定"
-                  cancelText="取消"
-                >
-                  <Button
-                    danger
-                    icon={<DeleteOutlined />}
-                  >
-                    删除
-                  </Button>
-                </Popconfirm>
-              </Space>
-            }
-            loading={loading}
-          >
+              </Popconfirm>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
+      <Row gutter={24}>
+        {/* 左侧：工单信息 */}
+        <Col span={16}>
+          <Card title="工单信息" style={{ marginBottom: '24px' }}>
             <Descriptions column={2} bordered>
-              <Descriptions.Item label="工单ID">
-                {currentTicket.id}
+              <Descriptions.Item label="标题" span={2}>
+                {ticket.title}
               </Descriptions.Item>
               <Descriptions.Item label="状态">
-                {getStatusTag(currentTicket.status)}
+                <Tag color={getStatusColor(ticket.status)}>
+                  {getStatusText(ticket.status)}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="优先级">
-                {getPriorityTag(currentTicket.priority)}
+                <Tag color={getPriorityColor(ticket.priority)}>
+                  {getPriorityText(ticket.priority)}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="创建人">
                 <Space>
                   <Avatar size="small" icon={<UserOutlined />} />
-                  {currentTicket.creator?.username}
+                  {ticket.created_by}
                 </Space>
               </Descriptions.Item>
-              <Descriptions.Item label="分配人">
-                {currentTicket.assignee ? (
+              <Descriptions.Item label="分配给">
+                {ticket.assigned_to ? (
                   <Space>
                     <Avatar size="small" icon={<UserOutlined />} />
-                    {currentTicket.assignee.username}
+                    {ticket.assigned_to}
                   </Space>
                 ) : (
                   <Text type="secondary">未分配</Text>
                 )}
               </Descriptions.Item>
               <Descriptions.Item label="创建时间">
-                {formatDateTime(currentTicket.created_at)}
+                <Space>
+                  <ClockCircleOutlined />
+                  {format(new Date(ticket.created_at), 'yyyy-MM-dd HH:mm:ss')}
+                </Space>
               </Descriptions.Item>
               <Descriptions.Item label="更新时间">
-                {formatDateTime(currentTicket.updated_at)}
+                <Space>
+                  <ClockCircleOutlined />
+                  {format(new Date(ticket.updated_at), 'yyyy-MM-dd HH:mm:ss')}
+                </Space>
               </Descriptions.Item>
-              <Descriptions.Item label="关联告警">
-                {currentTicket.alert_id || <Text type="secondary">无</Text>}
+              {ticket.due_date && (
+                <Descriptions.Item label="截止时间" span={2}>
+                  <Space>
+                    <ClockCircleOutlined />
+                    {format(new Date(ticket.due_date), 'yyyy-MM-dd HH:mm:ss')}
+                  </Space>
+                </Descriptions.Item>
+              )}
+              {ticket.tags && ticket.tags.length > 0 && (
+                <Descriptions.Item label="标签" span={2}>
+                  <Space wrap>
+                    {ticket.tags.map(tag => (
+                      <Tag key={tag}>{tag}</Tag>
+                    ))}
+                  </Space>
+                </Descriptions.Item>
+              )}
+              <Descriptions.Item label="描述" span={2}>
+                <div style={{ whiteSpace: 'pre-wrap' }}>
+                  {ticket.description}
+                </div>
               </Descriptions.Item>
             </Descriptions>
+          </Card>
 
-            <Divider orientation="left">工单描述</Divider>
-            <div style={{ padding: '16px', backgroundColor: '#fafafa', borderRadius: '6px' }}>
-              <Text>{currentTicket.description}</Text>
-            </div>
+          {/* 处理记录 */}
+          <Card
+            title="处理记录"
+            extra={
+              <Button
+                type="primary"
+                icon={<FileTextOutlined />}
+                onClick={() => setCommentModalVisible(true)}
+              >
+                添加评论
+              </Button>
+            }
+          >
+            <Timeline>
+              {processRecords.map(record => (
+                <Timeline.Item key={record.id}>
+                  <div>
+                    <Space>
+                      <Text strong>{getActionText(record.action)}</Text>
+                      <Text type="secondary">
+                        {format(new Date(record.created_at), 'yyyy-MM-dd HH:mm:ss')}
+                      </Text>
+                      <Text type="secondary">by {record.created_by}</Text>
+                    </Space>
+                    {record.comment && (
+                      <div style={{ marginTop: '8px', whiteSpace: 'pre-wrap' }}>
+                        {record.comment}
+                      </div>
+                    )}
+                    {record.attachments && record.attachments.length > 0 && (
+                      <div style={{ marginTop: '8px' }}>
+                        <Space wrap>
+                          {record.attachments.map(attachment => (
+                            <Tag key={attachment} icon={<PaperClipOutlined />}>
+                              {attachment}
+                            </Tag>
+                          ))}
+                        </Space>
+                      </div>
+                    )}
+                  </div>
+                </Timeline.Item>
+              ))}
+            </Timeline>
           </Card>
         </Col>
 
+        {/* 右侧：相关信息 */}
         <Col span={8}>
-          <Card
-            title="操作"
-            size="small"
-            style={{ marginBottom: '16px' }}
-          >
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Button
-                block
-                onClick={() => setStatusModalVisible(true)}
-              >
-                更新状态
-              </Button>
-              <Button
-                block
-                onClick={() => setAssignModalVisible(true)}
-              >
-                分配工单
-              </Button>
-              <Button
-                block
-                type="primary"
-                onClick={() => setProcessModalVisible(true)}
-              >
-                添加处理记录
-              </Button>
-            </Space>
-          </Card>
+          {ticket.alert_id && (
+            <Card title="关联告警" style={{ marginBottom: '24px' }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Text>告警ID: {ticket.alert_id}</Text>
+                <Button
+                  type="link"
+                  onClick={() => navigate(`/alerts/${ticket.alert_id}`)}
+                >
+                  查看告警详情
+                </Button>
+              </Space>
+            </Card>
+          )}
 
-          <Card title="处理记录" size="small">
-            {processRecords.length > 0 ? (
-              <Timeline>
-                {processRecords.map((record) => (
-                  <Timeline.Item
-                    key={record.id}
-                    dot={getTimelineIcon(record)}
-                  >
-                    <div>
-                      <div style={{ marginBottom: '4px' }}>
-                        <Space>
-                          <Avatar size="small" icon={<UserOutlined />} />
-                          <Text strong>{record.operator?.username}</Text>
-                          {record.status && getStatusTag(record.status)}
-                        </Space>
-                      </div>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        {formatDateTime(record.created_at)}
-                      </Text>
-                      <div style={{ marginTop: '8px' }}>
-                        <Text>{record.content}</Text>
-                      </div>
-                    </div>
-                  </Timeline.Item>
-                ))}
-              </Timeline>
-            ) : (
-              <Text type="secondary">暂无处理记录</Text>
-            )}
+          <Card title="统计信息">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <div>
+                <Text type="secondary">处理记录数量：</Text>
+                <Text strong>{processRecords.length}</Text>
+              </div>
+              <div>
+                <Text type="secondary">创建时长：</Text>
+                <Text strong>
+                  {Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / (1000 * 60 * 60 * 24))} 天
+                </Text>
+              </div>
+              {ticket.resolved_at && (
+                <div>
+                  <Text type="secondary">解决时长：</Text>
+                  <Text strong>
+                    {Math.floor((new Date(ticket.resolved_at).getTime() - new Date(ticket.created_at).getTime()) / (1000 * 60 * 60))} 小时
+                  </Text>
+                </div>
+              )}
+            </Space>
           </Card>
         </Col>
       </Row>
 
-      {/* 添加处理记录模态框 */}
-      <Modal
-        title="添加处理记录"
-        open={processModalVisible}
-        onCancel={() => setProcessModalVisible(false)}
-        footer={null}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleAddProcessRecord}
-        >
-          <Form.Item
-            label="处理内容"
-            name="content"
-            rules={[{ required: true, message: '请输入处理内容' }]}
-          >
-            <TextArea
-              rows={4}
-              placeholder="请描述处理过程和结果..."
-            />
-          </Form.Item>
-          <Form.Item
-            label="更新状态"
-            name="status"
-          >
-            <Select placeholder="选择新状态（可选）" allowClear>
-              <Option value="in_progress">处理中</Option>
-              <Option value="resolved">已解决</Option>
-              <Option value="closed">已关闭</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={submitting}
-              >
-                添加记录
-              </Button>
-              <Button onClick={() => setProcessModalVisible(false)}>
-                取消
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* 更新状态模态框 */}
+      {/* 状态更新模态框 */}
       <Modal
         title="更新工单状态"
         open={statusModalVisible}
         onCancel={() => setStatusModalVisible(false)}
         footer={null}
       >
-        <Form
-          layout="vertical"
-          onFinish={handleUpdateStatus}
-          initialValues={{ status: currentTicket.status }}
-        >
+        <Form form={form} onFinish={handleStatusUpdate} layout="vertical">
           <Form.Item
-            label="新状态"
             name="status"
+            label="新状态"
             rules={[{ required: true, message: '请选择状态' }]}
           >
-            <Select>
-              <Option value="open">待处理</Option>
-              <Option value="in_progress">处理中</Option>
-              <Option value="resolved">已解决</Option>
-              <Option value="closed">已关闭</Option>
+            <Select placeholder="请选择状态">
+              <Select.Option value="open">待处理</Select.Option>
+              <Select.Option value="in_progress">处理中</Select.Option>
+              <Select.Option value="resolved">已解决</Select.Option>
+              <Select.Option value="closed">已关闭</Select.Option>
             </Select>
+          </Form.Item>
+          <Form.Item name="comment" label="备注">
+            <TextArea rows={4} placeholder="请输入状态变更说明..." />
+          </Form.Item>
+          <Form.Item label="附件">
+            <Upload
+              fileList={attachments}
+              onChange={({ fileList }) => setAttachments(fileList)}
+              beforeUpload={() => false}
+              multiple
+            >
+              <Button icon={<UploadOutlined />}>选择文件</Button>
+            </Upload>
           </Form.Item>
           <Form.Item>
             <Space>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={submitting}
-              >
+              <Button type="primary" htmlType="submit" icon={<SendOutlined />}>
                 更新状态
               </Button>
               <Button onClick={() => setStatusModalVisible(false)}>
@@ -418,30 +524,73 @@ const TicketDetail: React.FC = () => {
         onCancel={() => setAssignModalVisible(false)}
         footer={null}
       >
-        <Form
-          layout="vertical"
-          onFinish={handleAssign}
-          initialValues={{ assignee_id: currentTicket.assignee?.id }}
-        >
+        <Form form={form} onFinish={handleAssign} layout="vertical">
           <Form.Item
+            name="assigned_to"
             label="分配给"
-            name="assignee_id"
-            rules={[{ required: true, message: '请选择分配人员' }]}
+            rules={[{ required: true, message: '请选择处理人' }]}
           >
-            <Select placeholder="请选择分配人员">
-              {/* 这里需要从API获取用户列表 */}
+            <Select
+              placeholder="请选择处理人"
+              showSearch
+              filterOption={(input, option) =>
+                (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {users.map(user => (
+                <Select.Option key={user.id} value={user.id}>
+                  {user.username} ({user.email})
+                </Select.Option>
+              ))}
             </Select>
+          </Form.Item>
+          <Form.Item name="comment" label="备注">
+            <TextArea rows={4} placeholder="请输入分配说明..." />
           </Form.Item>
           <Form.Item>
             <Space>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={submitting}
-              >
+              <Button type="primary" htmlType="submit" icon={<SendOutlined />}>
                 分配工单
               </Button>
               <Button onClick={() => setAssignModalVisible(false)}>
+                取消
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 添加评论模态框 */}
+      <Modal
+        title="添加评论"
+        open={commentModalVisible}
+        onCancel={() => setCommentModalVisible(false)}
+        footer={null}
+      >
+        <Form form={form} onFinish={handleAddComment} layout="vertical">
+          <Form.Item
+            name="comment"
+            label="评论内容"
+            rules={[{ required: true, message: '请输入评论内容' }]}
+          >
+            <TextArea rows={6} placeholder="请输入评论内容..." />
+          </Form.Item>
+          <Form.Item label="附件">
+            <Upload
+              fileList={attachments}
+              onChange={({ fileList }) => setAttachments(fileList)}
+              beforeUpload={() => false}
+              multiple
+            >
+              <Button icon={<UploadOutlined />}>选择文件</Button>
+            </Upload>
+          </Form.Item>
+          <Form.Item>
+            <Space>
+              <Button type="primary" htmlType="submit" icon={<SendOutlined />}>
+                添加评论
+              </Button>
+              <Button onClick={() => setCommentModalVisible(false)}>
                 取消
               </Button>
             </Space>

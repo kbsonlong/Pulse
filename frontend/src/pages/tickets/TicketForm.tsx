@@ -1,20 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Form,
   Input,
   Select,
   Button,
   Card,
-  Space,
-  message,
   Row,
   Col,
+  Space,
+  DatePicker,
+  Upload,
+  message,
+  Spin,
+  Tag,
   Divider,
+  Alert
 } from 'antd';
+import {
+  SaveOutlined,
+  ArrowLeftOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  UploadOutlined
+} from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useTicket, useUI } from '../../hooks';
-import { TicketPriority, User } from '../../types';
+import { useTicket } from '../../hooks/useTicket';
+import { useUI } from '../../hooks/useUI';
 import { ticketService } from '../../services/ticket';
+import { userService } from '../../services/user';
+import type { Ticket, TicketPriority, TicketStatus } from '../../types';
+import type { UploadFile } from 'antd';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -23,121 +38,189 @@ interface TicketFormData {
   title: string;
   description: string;
   priority: TicketPriority;
-  assignee_id?: string;
+  assigned_to?: string;
+  due_date?: string;
+  tags: string[];
+  attachments?: UploadFile[];
   alert_id?: string;
 }
 
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+}
+
 const TicketForm: React.FC = () => {
+  const [form] = Form.useForm<TicketFormData>();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { setBreadcrumbs } = useUI();
-  const { currentTicket, loading, fetchTicket, createTicket, updateTicket } = useTicket();
+  const isEdit = Boolean(id);
   
-  const [form] = Form.useForm<TicketFormData>();
-  const [submitting, setSubmitting] = useState(false);
-  const [assignableUsers, setAssignableUsers] = useState<User[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const { loading, setLoading } = useUI();
+  const [users, setUsers] = useState<User[]>([]);
+  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [attachments, setAttachments] = useState<UploadFile[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState('');
 
-  const isEdit = !!id;
-
-  useEffect(() => {
-    setBreadcrumbs([
-      { title: '工单管理' },
-      { title: '工单列表', path: '/tickets/list' },
-      { title: isEdit ? '编辑工单' : '创建工单' },
-    ]);
-
-    if (isEdit && id) {
-      fetchTicket(id);
-    }
-
-    // 获取可分配的用户列表
-    fetchAssignableUsers();
-  }, [setBreadcrumbs, isEdit, id, fetchTicket]);
-
-  useEffect(() => {
-    if (isEdit && currentTicket) {
-      form.setFieldsValue({
-        title: currentTicket.title,
-        description: currentTicket.description,
-        priority: currentTicket.priority,
-        assignee_id: currentTicket.assignee?.id,
-        alert_id: currentTicket.alert_id,
-      });
-    }
-  }, [isEdit, currentTicket, form]);
-
-  // 获取可分配的用户列表
-  const fetchAssignableUsers = async () => {
-    setLoadingUsers(true);
+  // 加载用户列表
+  const loadUsers = async () => {
     try {
-      const users = await ticketService.getAssignableUsers();
-      setAssignableUsers(users);
+      const response = await userService.getUsers({ page: 1, limit: 100 });
+      setUsers(response.users);
     } catch (error) {
-      message.error('获取用户列表失败');
-    } finally {
-      setLoadingUsers(false);
+      console.error('Failed to load users:', error);
     }
   };
 
-  // 提交表单
-  const handleSubmit = async (values: TicketFormData) => {
-    setSubmitting(true);
+  // 加载工单详情（编辑模式）
+  const loadTicket = async () => {
+    if (!id) return;
+    
     try {
+      setLoading(true);
+      const ticketData = await ticketService.getTicket(id);
+      setTicket(ticketData);
+      
+      // 填充表单
+      form.setFieldsValue({
+        title: ticketData.title,
+        description: ticketData.description,
+        priority: ticketData.priority,
+        assigned_to: ticketData.assigned_to,
+        due_date: ticketData.due_date,
+        tags: ticketData.tags || []
+      });
+      
+      setTags(ticketData.tags || []);
+    } catch (error) {
+      message.error('加载工单详情失败');
+      navigate('/tickets');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+    if (isEdit) {
+      loadTicket();
+    }
+  }, [id, isEdit]);
+
+  // 处理表单提交
+  const handleSubmit = async (values: TicketFormData) => {
+    try {
+      setLoading(true);
+      
+      const formData = {
+        ...values,
+        tags,
+        due_date: values.due_date || undefined
+      };
+
       if (isEdit && id) {
-        await updateTicket(id, values);
+        await ticketService.updateTicket(id, formData);
         message.success('工单更新成功');
       } else {
-        await createTicket(values);
+        await ticketService.createTicket(formData);
         message.success('工单创建成功');
       }
-      navigate('/tickets/list');
+      
+      navigate('/tickets');
     } catch (error) {
       message.error(isEdit ? '工单更新失败' : '工单创建失败');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  // 取消操作
-  const handleCancel = () => {
-    navigate('/tickets/list');
+  // 添加标签
+  const handleAddTag = () => {
+    if (newTag && !tags.includes(newTag)) {
+      const newTags = [...tags, newTag];
+      setTags(newTags);
+      form.setFieldValue('tags', newTags);
+      setNewTag('');
+    }
   };
 
-  // 获取优先级选项
+  // 删除标签
+  const handleRemoveTag = (tagToRemove: string) => {
+    const newTags = tags.filter(tag => tag !== tagToRemove);
+    setTags(newTags);
+    form.setFieldValue('tags', newTags);
+  };
+
+  // 文件上传处理
+  const handleUploadChange = (info: any) => {
+    setAttachments(info.fileList);
+  };
+
   const priorityOptions = [
-    { value: 'low', label: '低', color: 'blue' },
-    { value: 'medium', label: '中', color: 'yellow' },
-    { value: 'high', label: '高', color: 'orange' },
-    { value: 'critical', label: '紧急', color: 'red' },
+    { value: 'low', label: '低', color: 'green' },
+    { value: 'medium', label: '中', color: 'orange' },
+    { value: 'high', label: '高', color: 'red' },
+    { value: 'urgent', label: '紧急', color: 'purple' }
   ];
+
+  if (loading && isEdit) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '24px' }}>
-      <Card title={isEdit ? '编辑工单' : '创建工单'}>
+      <Card>
+        <div style={{ marginBottom: '24px' }}>
+          <Space>
+            <Button
+              icon={<ArrowLeftOutlined />}
+              onClick={() => navigate('/tickets')}
+            >
+              返回
+            </Button>
+            <h2 style={{ margin: 0 }}>
+              {isEdit ? '编辑工单' : '创建工单'}
+            </h2>
+          </Space>
+        </div>
+
+        {ticket?.alert_id && (
+          <Alert
+            message="此工单由告警自动创建"
+            description={`关联告警ID: ${ticket.alert_id}`}
+            type="info"
+            showIcon
+            style={{ marginBottom: '24px' }}
+          />
+        )}
+
         <Form
           form={form}
           layout="vertical"
           onFinish={handleSubmit}
           initialValues={{
             priority: 'medium',
+            tags: []
           }}
         >
           <Row gutter={24}>
             <Col span={24}>
               <Form.Item
-                label="工单标题"
                 name="title"
+                label="工单标题"
                 rules={[
                   { required: true, message: '请输入工单标题' },
-                  { max: 200, message: '标题不能超过200个字符' },
+                  { max: 200, message: '标题不能超过200个字符' }
                 ]}
               >
-                <Input
-                  placeholder="请输入工单标题"
-                  maxLength={200}
-                  showCount
-                />
+                <Input placeholder="请输入工单标题" />
               </Form.Item>
             </Col>
           </Row>
@@ -145,15 +228,14 @@ const TicketForm: React.FC = () => {
           <Row gutter={24}>
             <Col span={12}>
               <Form.Item
-                label="优先级"
                 name="priority"
+                label="优先级"
                 rules={[{ required: true, message: '请选择优先级' }]}
               >
                 <Select placeholder="请选择优先级">
-                  {priorityOptions.map((option) => (
+                  {priorityOptions.map(option => (
                     <Option key={option.value} value={option.value}>
-                      <span style={{ color: option.color }}>●</span>
-                      <span style={{ marginLeft: 8 }}>{option.label}</span>
+                      <Tag color={option.color}>{option.label}</Tag>
                     </Option>
                   ))}
                 </Select>
@@ -161,21 +243,18 @@ const TicketForm: React.FC = () => {
             </Col>
             <Col span={12}>
               <Form.Item
+                name="assigned_to"
                 label="分配给"
-                name="assignee_id"
               >
                 <Select
-                  placeholder="请选择分配人员"
+                  placeholder="请选择处理人"
                   allowClear
-                  loading={loadingUsers}
                   showSearch
                   filterOption={(input, option) =>
-                    (option?.children as string)
-                      ?.toLowerCase()
-                      .includes(input.toLowerCase())
+                    (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
                   }
                 >
-                  {assignableUsers.map((user) => (
+                  {users.map(user => (
                     <Option key={user.id} value={user.id}>
                       {user.username} ({user.email})
                     </Option>
@@ -186,15 +265,49 @@ const TicketForm: React.FC = () => {
           </Row>
 
           <Row gutter={24}>
-            <Col span={24}>
+            <Col span={12}>
               <Form.Item
-                label="关联告警ID"
-                name="alert_id"
+                name="due_date"
+                label="截止日期"
               >
-                <Input
-                  placeholder="请输入关联的告警ID（可选）"
-                  disabled={isEdit} // 编辑时不允许修改关联告警
+                <DatePicker
+                  style={{ width: '100%' }}
+                  placeholder="请选择截止日期"
+                  showTime
                 />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="标签">
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Space wrap>
+                    {tags.map(tag => (
+                      <Tag
+                        key={tag}
+                        closable
+                        onClose={() => handleRemoveTag(tag)}
+                      >
+                        {tag}
+                      </Tag>
+                    ))}
+                  </Space>
+                  <Space.Compact style={{ width: '100%' }}>
+                    <Input
+                      placeholder="添加标签"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onPressEnter={handleAddTag}
+                    />
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={handleAddTag}
+                      disabled={!newTag}
+                    >
+                      添加
+                    </Button>
+                  </Space.Compact>
+                </Space>
               </Form.Item>
             </Col>
           </Row>
@@ -202,19 +315,34 @@ const TicketForm: React.FC = () => {
           <Row gutter={24}>
             <Col span={24}>
               <Form.Item
-                label="工单描述"
                 name="description"
+                label="工单描述"
                 rules={[
                   { required: true, message: '请输入工单描述' },
-                  { max: 2000, message: '描述不能超过2000个字符' },
+                  { min: 10, message: '描述至少需要10个字符' }
                 ]}
               >
                 <TextArea
-                  rows={8}
+                  rows={6}
                   placeholder="请详细描述问题或需求..."
-                  maxLength={2000}
                   showCount
+                  maxLength={2000}
                 />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
+            <Col span={24}>
+              <Form.Item label="附件">
+                <Upload
+                  fileList={attachments}
+                  onChange={handleUploadChange}
+                  beforeUpload={() => false} // 阻止自动上传
+                  multiple
+                >
+                  <Button icon={<UploadOutlined />}>选择文件</Button>
+                </Upload>
               </Form.Item>
             </Col>
           </Row>
@@ -226,14 +354,15 @@ const TicketForm: React.FC = () => {
               <Button
                 type="primary"
                 htmlType="submit"
-                loading={submitting || loading}
+                icon={<SaveOutlined />}
+                loading={loading}
                 size="large"
               >
                 {isEdit ? '更新工单' : '创建工单'}
               </Button>
               <Button
                 size="large"
-                onClick={handleCancel}
+                onClick={() => navigate('/tickets')}
               >
                 取消
               </Button>

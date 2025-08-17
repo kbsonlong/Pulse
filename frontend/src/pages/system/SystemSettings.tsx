@@ -345,3 +345,408 @@ const SystemSettings: React.FC = () => {
               >
                 <InputNumber
                   min={1}
+                  max={365}
+                  placeholder="天数"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="max_alerts_per_page"
+                label="每页最大告警数"
+                rules={[{ required: true, message: '请输入每页最大告警数' }]}
+              >
+                <InputNumber
+                  min={10}
+                  max={200}
+                  placeholder="条数"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="auto_resolve_timeout"
+                label="自动解决超时（小时）"
+                rules={[{ required: true, message: '请输入自动解决超时时间' }]}
+              >
+                <InputNumber
+                  min={1}
+                  max={168}
+                  placeholder="小时"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="enable_alert_grouping"
+                label="启用告警分组"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider />
+
+          {/* 邮件通知设置 */}
+          <Title level={5}>邮件通知设置</Title>
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="email_enabled"
+                label="启用邮件通知"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+            <Col span={16}>
+              <Space>
+                <Button onClick={handleTestEmail}>测试邮件配置</Button>
+              </Space>
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item
+                name="email_smtp_host"
+                label="SMTP服务器"
+              >
+                <Input placeholder="smtp.example.com" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="email_smtp_port"
+                label="SMTP端口"
+              >
+                <InputNumber
+                  min={1}
+                  max={65535}
+                  placeholder="587"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item
+                name="email_smtp_username"
+                label="SMTP用户名"
+              >
+                <Input placeholder="username@example.com" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="email_smtp_password"
+                label="SMTP密码"
+              >
+                <Input.Password placeholder="请输入SMTP密码" />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Form.Item
+            name="email_from_address"
+            label="发件人地址"
+          >
+            <Input placeholder="alerts@example.com" />
+          </Form.Item>
+
+          <Divider />
+
+          {/* 短信通知设置 */}
+          <Title level={5}>短信通知设置</Title>
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="sms_enabled"
+                label="启用短信通知"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+            <Col span={16}>
+              <Space>
+                <Button onClick={handleTestSMS}>测试短信配置</Button>
+              </Space>
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="sms_provider"
+                label="短信服务商"
+              >
+                <Select placeholder="请选择短信服务商">
+                  <Option value="aliyun">阿里云</Option>
+                  <Option value="tencent">腾讯云</Option>
+                  <Option value="huawei">华为云</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="sms_api_key"
+                label="API Key"
+              >
+                <Input placeholder="请输入API Key" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="sms_api_secret"
+                label="API Secret"
+              >
+                <Input.Password placeholder="请输入API Secret" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider />
+
+          {/* Webhook设置 */}
+          <Title level={5}>Webhook设置</Title>
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="webhook_enabled"
+                label="启用Webhook"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+            <Col span={16}>
+              <Space>
+                <Button onClick={handleTestWebhook}>测试Webhook</Button>
+              </Space>
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={18}>
+              <Form.Item
+                name="webhook_url"
+                label="Webhook URL"
+              >
+                <Input placeholder="https://example.com/webhook" />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item
+                name="webhook_timeout"
+                label="超时时间（秒）"
+              >
+                <InputNumber
+                  min={1}
+                  max={300}
+                  placeholder="30"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider />
+
+          {/* 安全设置 */}
+          <Title level={5}>安全设置</Title>
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="session_timeout"
+                label="会话超时（小时）"
+                rules={[{ required: true, message: '请输入会话超时时间' }]}
+              >
+                <InputNumber
+                  min={1}
+                  max={24}
+                  placeholder="8"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="password_min_length"
+                label="密码最小长度"
+                rules={[{ required: true, message: '请输入密码最小长度' }]}
+              >
+                <InputNumber
+                  min={6}
+                  max={32}
+                  placeholder="8"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="password_require_special"
+                label="密码需要特殊字符"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="login_max_attempts"
+                label="最大登录尝试次数"
+                rules={[{ required: true, message: '请输入最大登录尝试次数' }]}
+              >
+                <InputNumber
+                  min={3}
+                  max={10}
+                  placeholder="5"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="login_lockout_duration"
+                label="锁定时长（分钟）"
+                rules={[{ required: true, message: '请输入锁定时长' }]}
+              >
+                <InputNumber
+                  min={5}
+                  max={1440}
+                  placeholder="30"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider />
+
+          {/* 性能设置 */}
+          <Title level={5}>性能设置</Title>
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="max_concurrent_requests"
+                label="最大并发请求数"
+                rules={[{ required: true, message: '请输入最大并发请求数' }]}
+              >
+                <InputNumber
+                  min={10}
+                  max={1000}
+                  placeholder="100"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="request_timeout"
+                label="请求超时（秒）"
+                rules={[{ required: true, message: '请输入请求超时时间' }]}
+              >
+                <InputNumber
+                  min={5}
+                  max={300}
+                  placeholder="30"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="cache_enabled"
+                label="启用缓存"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="cache_ttl"
+                label="缓存TTL（秒）"
+              >
+                <InputNumber
+                  min={60}
+                  max={3600}
+                  placeholder="300"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider />
+
+          {/* 备份设置 */}
+          <Title level={5}>备份设置</Title>
+          <Row gutter={24}>
+            <Col span={8}>
+              <Form.Item
+                name="backup_enabled"
+                label="启用自动备份"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="backup_retention_days"
+                label="备份保留天数"
+              >
+                <InputNumber
+                  min={1}
+                  max={365}
+                  placeholder="7"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item
+                name="backup_schedule"
+                label="备份计划（Cron表达式）"
+              >
+                <Input placeholder="0 2 * * *" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="backup_storage_path"
+                label="备份存储路径"
+              >
+                <Input placeholder="/data/backups" />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Card>
+    </div>
+  );
+};
+
+export default SystemSettings;

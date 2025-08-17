@@ -1,275 +1,407 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
-  Tree,
+  Table,
   Button,
   Space,
-  Modal,
-  Form,
   Input,
-  Select,
+  Form,
+  Modal,
+  Tree,
   message,
   Popconfirm,
+  Tag,
+  Tooltip,
   Row,
-  Col,
-  Typography,
+  Col
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   FolderOutlined,
-  FolderOpenOutlined,
-  ArrowLeftOutlined,
+  FileTextOutlined,
+  SearchOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import { useKnowledge, useUI } from '../../hooks';
-import { KnowledgeCategory } from '../../types';
-import type { DataNode, TreeProps } from 'antd/es/tree';
-
-const { Title } = Typography;
-const { TextArea } = Input;
-const { Option } = Select;
+import { useKnowledge } from '../../hooks/useKnowledge';
+import { useUI } from '../../hooks/useUI';
+import { knowledgeService } from '../../services/knowledge';
+import type { KnowledgeCategory } from '../../types';
+import type { ColumnsType } from 'antd/es/table';
+import type { DataNode } from 'antd/es/tree';
 
 interface CategoryFormData {
   name: string;
   description?: string;
   parent_id?: string;
-  sort_order: number;
 }
 
 const CategoryManagement: React.FC = () => {
-  const navigate = useNavigate();
-  const { setBreadcrumb } = useUI();
-  const {
-    categories,
-    loading,
-    fetchCategories,
-  } = useKnowledge();
-
+  const { loading, setLoading } = useUI();
   const [form] = Form.useForm<CategoryFormData>();
-  const [modalVisible, setModalVisible] = useState(false);
+  
+  const [categories, setCategories] = useState<KnowledgeCategory[]>([]);
+  const [treeData, setTreeData] = useState<DataNode[]>([]);
+  const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState<KnowledgeCategory | null>(null);
+  const [searchText, setSearchText] = useState('');
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([]);
-  const [autoExpandParent, setAutoExpandParent] = useState(true);
+  const [viewMode, setViewMode] = useState<'table' | 'tree'>('table');
+
+  // 加载分类列表
+  const loadCategories = async () => {
+    try {
+      setLoading(true);
+      const response = await knowledgeService.getCategories();
+      setCategories(response);
+      buildTreeData(response);
+    } catch (error) {
+      message.error('加载分类失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setBreadcrumb([
-      { title: '知识库管理' },
-      { title: '文档列表', path: '/knowledge' },
-      { title: '分类管理' },
-    ]);
-    fetchCategories();
-  }, [setBreadcrumb, fetchCategories]);
+    loadCategories();
+  }, []);
 
-  // 构建分类树数据
-  const buildCategoryTree = (categories: KnowledgeCategory[]): DataNode[] => {
-    const categoryMap = new Map<string, KnowledgeCategory & { children: KnowledgeCategory[] }>();
-    
-    // 初始化所有分类
-    categories.forEach(category => {
-      categoryMap.set(category.id, { ...category, children: [] });
-    });
-    
-    // 构建树结构
-    const rootCategories: (KnowledgeCategory & { children: KnowledgeCategory[] })[] = [];
-    
-    categories.forEach(category => {
-      const categoryWithChildren = categoryMap.get(category.id)!;
-      if (category.parent_id) {
-        const parent = categoryMap.get(category.parent_id);
-        if (parent) {
-          parent.children.push(categoryWithChildren);
-        }
-      } else {
-        rootCategories.push(categoryWithChildren);
-      }
-    });
-    
-    // 转换为 Tree 组件需要的格式
-    const convertToTreeData = (cats: (KnowledgeCategory & { children: KnowledgeCategory[] })[]): DataNode[] => {
-      return cats.map(cat => ({
-        key: cat.id,
+  // 构建树形数据
+  const buildTreeData = (categories: KnowledgeCategory[]) => {
+    const categoryMap = new Map<string, KnowledgeCategory>();
+    categories.forEach(cat => categoryMap.set(cat.id, cat));
+
+    const buildNode = (category: KnowledgeCategory): DataNode => {
+      const children = categories
+        .filter(cat => cat.parent_id === category.id)
+        .map(buildNode);
+
+      return {
+        key: category.id,
         title: (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>{cat.name}</span>
-            <Space size="small">
+          <Space>
+            <FolderOutlined />
+            <span>{category.name}</span>
+            <Tag color="blue">{category.document_count || 0}</Tag>
+          </Space>
+        ),
+        children: children.length > 0 ? children : undefined
+      };
+    };
+
+    const rootCategories = categories.filter(cat => !cat.parent_id);
+    const treeData = rootCategories.map(buildNode);
+    setTreeData(treeData);
+
+    // 默认展开所有节点
+    const allKeys = categories.map(cat => cat.id);
+    setExpandedKeys(allKeys);
+  };
+
+  // 打开创建/编辑模态框
+  const openModal = (category?: KnowledgeCategory) => {
+    setEditingCategory(category || null);
+    setIsModalVisible(true);
+    
+    if (category) {
+      form.setFieldsValue({
+        name: category.name,
+        description: category.description,
+        parent_id: category.parent_id
+      });
+    } else {
+      form.resetFields();
+    }
+  };
+
+  // 关闭模态框
+  const closeModal = () => {
+    setIsModalVisible(false);
+    setEditingCategory(null);
+    form.resetFields();
+  };
+
+  // 处理表单提交
+  const handleSubmit = async (values: CategoryFormData) => {
+    try {
+      if (editingCategory) {
+        await knowledgeService.updateCategory(editingCategory.id, values);
+        message.success('分类更新成功');
+      } else {
+        await knowledgeService.createCategory(values);
+        message.success('分类创建成功');
+      }
+      
+      closeModal();
+      loadCategories();
+    } catch (error) {
+      message.error(editingCategory ? '分类更新失败' : '分类创建失败');
+    }
+  };
+
+  // 删除分类
+  const handleDelete = async (id: string) => {
+    try {
+      await knowledgeService.deleteCategory(id);
+      message.success('分类删除成功');
+      loadCategories();
+    } catch (error) {
+      message.error('分类删除失败');
+    }
+  };
+
+  // 获取分类路径
+  const getCategoryPath = (categoryId: string): string => {
+    const category = categories.find(cat => cat.id === categoryId);
+    if (!category) return '';
+    
+    if (category.parent_id) {
+      const parentPath = getCategoryPath(category.parent_id);
+      return parentPath ? `${parentPath} / ${category.name}` : category.name;
+    }
+    
+    return category.name;
+  };
+
+  // 过滤分类
+  const filteredCategories = categories.filter(category =>
+    category.name.toLowerCase().includes(searchText.toLowerCase()) ||
+    (category.description && category.description.toLowerCase().includes(searchText.toLowerCase()))
+  );
+
+  const columns: ColumnsType<KnowledgeCategory> = [
+    {
+      title: '分类名称',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name: string, record: KnowledgeCategory) => (
+        <Space>
+          <FolderOutlined />
+          <span>{name}</span>
+        </Space>
+      )
+    },
+    {
+      title: '路径',
+      key: 'path',
+      render: (_, record: KnowledgeCategory) => (
+        <span style={{ color: '#666' }}>
+          {getCategoryPath(record.id)}
+        </span>
+      )
+    },
+    {
+      title: '描述',
+      dataIndex: 'description',
+      key: 'description',
+      ellipsis: true,
+      render: (description: string) => (
+        description ? (
+          <Tooltip title={description}>
+            <span>{description}</span>
+          </Tooltip>
+        ) : (
+          <span style={{ color: '#999' }}>无描述</span>
+        )
+      )
+    },
+    {
+      title: '文档数量',
+      dataIndex: 'document_count',
+      key: 'document_count',
+      width: 100,
+      render: (count: number) => (
+        <Tag color="blue">{count || 0}</Tag>
+      )
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 180,
+      render: (date: string) => (
+        new Date(date).toLocaleString()
+      )
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 150,
+      render: (_, record: KnowledgeCategory) => (
+        <Space>
+          <Tooltip title="编辑">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => openModal(record)}
+            />
+          </Tooltip>
+          <Tooltip title="添加子分类">
+            <Button
+              type="text"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                form.setFieldValue('parent_id', record.id);
+                openModal();
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="删除">
+            <Popconfirm
+              title="确定要删除这个分类吗？"
+              description="删除分类会同时删除其下的所有子分类和文档"
+              onConfirm={() => handleDelete(record.id)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+              />
+            </Popconfirm>
+          </Tooltip>
+        </Space>
+      )
+    }
+  ];
+
+  const renderTreeView = () => (
+    <Card>
+      <Tree
+        treeData={treeData}
+        expandedKeys={expandedKeys}
+        selectedKeys={selectedKeys}
+        onExpand={setExpandedKeys}
+        onSelect={setSelectedKeys}
+        showLine
+        showIcon
+        titleRender={(nodeData) => (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              width: '100%'
+            }}
+          >
+            <span>{nodeData.title}</span>
+            <Space>
               <Button
                 type="text"
                 size="small"
                 icon={<EditOutlined />}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleEdit(cat);
+                  const category = categories.find(cat => cat.id === nodeData.key);
+                  if (category) openModal(category);
+                }}
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  form.setFieldValue('parent_id', nodeData.key);
+                  openModal();
                 }}
               />
               <Popconfirm
                 title="确定要删除这个分类吗？"
-                description="删除分类会同时删除其下的所有子分类"
                 onConfirm={(e) => {
                   e?.stopPropagation();
-                  handleDelete(cat.id);
+                  handleDelete(nodeData.key as string);
                 }}
-                okText="删除"
-                cancelText="取消"
+                onClick={(e) => e?.stopPropagation()}
               >
                 <Button
                   type="text"
                   size="small"
-                  icon={<DeleteOutlined />}
                   danger
+                  icon={<DeleteOutlined />}
                   onClick={(e) => e.stopPropagation()}
                 />
               </Popconfirm>
             </Space>
           </div>
-        ),
-        icon: ({ expanded }: { expanded: boolean }) => 
-          expanded ? <FolderOpenOutlined /> : <FolderOutlined />,
-        children: cat.children.length > 0 ? convertToTreeData(cat.children) : undefined,
-      }));
-    };
-    
-    return convertToTreeData(rootCategories);
-  };
+        )}
+      />
+    </Card>
+  );
 
-  // 获取可选的父分类（排除自己和子分类）
-  const getAvailableParents = (excludeId?: string): KnowledgeCategory[] => {
-    if (!excludeId) return categories as KnowledgeCategory[];
-    
-    const getDescendants = (parentId: string): string[] => {
-      const descendants: string[] = [parentId];
-      const children = (categories as KnowledgeCategory[]).filter(cat => cat.parent_id === parentId);
-      children.forEach(child => {
-        descendants.push(...getDescendants(child.id));
-      });
-      return descendants;
-    };
-    
-    const excludeIds = getDescendants(excludeId);
-    return (categories as KnowledgeCategory[]).filter(cat => !excludeIds.includes(cat.id));
-  };
-
-  // 处理树节点展开
-  const onExpand: TreeProps['onExpand'] = (expandedKeysValue) => {
-    setExpandedKeys(expandedKeysValue);
-    setAutoExpandParent(false);
-  };
-
-  // 处理树节点选择
-  const onSelect: TreeProps['onSelect'] = (selectedKeysValue) => {
-    setSelectedKeys(selectedKeysValue);
-  };
-
-  // 创建分类
-  const handleCreate = () => {
-    setEditingCategory(null);
-    form.resetFields();
-    form.setFieldsValue({ sort_order: 0 });
-    setModalVisible(true);
-  };
-
-  // 编辑分类
-  const handleEdit = (category: KnowledgeCategory) => {
-    setEditingCategory(category);
-    form.setFieldsValue({
-      name: category.name,
-      description: category.description,
-      parent_id: category.parent_id,
-      sort_order: category.sort_order,
-    });
-    setModalVisible(true);
-  };
-
-  // 删除分类
-  const handleDelete = async (id: string) => {
-    try {
-      // 这里应该调用删除分类的API
-      message.success('删除成功');
-      fetchCategories();
-    } catch (error) {
-      message.error('删除失败');
-    }
-  };
-
-  // 提交表单
-  const handleSubmit = async (values: CategoryFormData) => {
-    try {
-      if (editingCategory) {
-        // 更新分类
-        message.success('更新成功');
-      } else {
-        // 创建分类
-        message.success('创建成功');
-      }
-      setModalVisible(false);
-      fetchCategories();
-    } catch (error) {
-      message.error(editingCategory ? '更新失败' : '创建失败');
-    }
-  };
-
-  // 返回列表
-  const handleBack = () => {
-    navigate('/knowledge');
-  };
+  const renderTableView = () => (
+    <Card>
+      <Table
+        columns={columns}
+        dataSource={filteredCategories}
+        rowKey="id"
+        loading={loading}
+        pagination={{
+          showSizeChanger: true,
+          showQuickJumper: true,
+          showTotal: (total, range) =>
+            `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
+        }}
+      />
+    </Card>
+  );
 
   return (
-    <div className="category-management">
-      <Card
-        title={
-          <Space>
+    <div style={{ padding: '24px' }}>
+      <Row gutter={16} style={{ marginBottom: '16px' }}>
+        <Col span={12}>
+          <Input.Search
+            placeholder="搜索分类名称或描述"
+            allowClear
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ width: '100%' }}
+          />
+        </Col>
+        <Col span={12}>
+          <Space style={{ float: 'right' }}>
+            <Button.Group>
+              <Button
+                type={viewMode === 'table' ? 'primary' : 'default'}
+                onClick={() => setViewMode('table')}
+              >
+                表格视图
+              </Button>
+              <Button
+                type={viewMode === 'tree' ? 'primary' : 'default'}
+                onClick={() => setViewMode('tree')}
+              >
+                树形视图
+              </Button>
+            </Button.Group>
             <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={handleBack}
+              icon={<ReloadOutlined />}
+              onClick={loadCategories}
             >
-              返回
+              刷新
             </Button>
-            <Title level={4} style={{ margin: 0 }}>分类管理</Title>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => openModal()}
+            >
+              创建分类
+            </Button>
           </Space>
-        }
-        extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleCreate}
-          >
-            新建分类
-          </Button>
-        }
-      >
-        <Row gutter={24}>
-          <Col span={24}>
-            {categories && categories.length > 0 ? (
-              <Tree
-                showIcon
-                expandedKeys={expandedKeys}
-                autoExpandParent={autoExpandParent}
-                selectedKeys={selectedKeys}
-                onExpand={onExpand}
-                onSelect={onSelect}
-                treeData={buildCategoryTree(categories as KnowledgeCategory[])}
-                style={{ background: '#fafafa', padding: 16, borderRadius: 6 }}
-              />
-            ) : (
-              <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>
-                <FolderOutlined style={{ fontSize: 48, marginBottom: 16 }} />
-                <div>暂无分类，点击上方按钮创建第一个分类</div>
-              </div>
-            )}
-          </Col>
-        </Row>
-      </Card>
+        </Col>
+      </Row>
 
-      {/* 分类表单弹窗 */}
+      {viewMode === 'table' ? renderTableView() : renderTreeView()}
+
       <Modal
-        title={editingCategory ? '编辑分类' : '新建分类'}
-        open={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onOk={() => form.submit()}
-        okText={editingCategory ? '更新' : '创建'}
-        cancelText="取消"
+        title={editingCategory ? '编辑分类' : '创建分类'}
+        open={isModalVisible}
+        onCancel={closeModal}
+        footer={null}
+        width={600}
       >
         <Form
           form={form}
@@ -281,23 +413,10 @@ const CategoryManagement: React.FC = () => {
             label="分类名称"
             rules={[
               { required: true, message: '请输入分类名称' },
-              { max: 50, message: '分类名称不能超过50个字符' },
+              { max: 50, message: '分类名称不能超过50个字符' }
             ]}
           >
             <Input placeholder="请输入分类名称" />
-          </Form.Item>
-
-          <Form.Item
-            name="description"
-            label="分类描述"
-            rules={[
-              { max: 200, message: '分类描述不能超过200个字符' },
-            ]}
-          >
-            <TextArea
-              placeholder="请输入分类描述（可选）"
-              rows={3}
-            />
           </Form.Item>
 
           <Form.Item
@@ -308,26 +427,37 @@ const CategoryManagement: React.FC = () => {
               placeholder="请选择父分类（可选）"
               allowClear
             >
-              {getAvailableParents(editingCategory?.id).map(category => (
-                <Option key={category.id} value={category.id}>
-                  {category.name}
-                </Option>
-              ))}
+              {categories
+                .filter(cat => !editingCategory || cat.id !== editingCategory.id)
+                .map(category => (
+                  <Select.Option key={category.id} value={category.id}>
+                    {getCategoryPath(category.id)}
+                  </Select.Option>
+                ))
+              }
             </Select>
           </Form.Item>
 
           <Form.Item
-            name="sort_order"
-            label="排序"
-            rules={[
-              { required: true, message: '请输入排序值' },
-              { type: 'number', min: 0, message: '排序值不能小于0' },
-            ]}
+            name="description"
+            label="分类描述"
           >
-            <Input
-              type="number"
-              placeholder="请输入排序值（数字越小越靠前）"
+            <Input.TextArea
+              rows={3}
+              placeholder="请输入分类描述（可选）"
+              maxLength={200}
             />
+          </Form.Item>
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={closeModal}>
+                取消
+              </Button>
+              <Button type="primary" htmlType="submit">
+                {editingCategory ? '更新' : '创建'}
+              </Button>
+            </Space>
           </Form.Item>
         </Form>
       </Modal>

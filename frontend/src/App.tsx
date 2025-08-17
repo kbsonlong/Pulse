@@ -17,11 +17,16 @@ import {
   KnowledgeList
 } from './pages';
 import DataSourceList from './pages/rules/DataSourceList';
+import RuleForm from './pages/rules/RuleForm';
+import DataSourceManagement from './pages/rules/DataSourceManagement';
 import TicketForm from './pages/tickets/TicketForm';
 import MyTickets from './pages/tickets/MyTickets';
 import CategoryManagement from './pages/knowledge/CategoryManagement';
 import KnowledgeForm from './pages/knowledge/KnowledgeForm';
 import KnowledgeDetail from './pages/knowledge/KnowledgeDetail';
+import UserManagement from './pages/system/UserManagement';
+import SystemSettings from './pages/system/SystemSettings';
+import Profile from './pages/system/Profile';
 import 'antd/dist/reset.css';
 
 const App: React.FC = () => {
@@ -49,7 +54,9 @@ const App: React.FC = () => {
               <Route path="rules">
                 <Route index element={<Navigate to="list" replace />} />
                 <Route path="list" element={<RuleList />} />
-                <Route path="datasources" element={<DataSourceList />} />
+                <Route path="create" element={<RuleForm />} />
+                <Route path="edit/:id" element={<RuleForm />} />
+                <Route path="datasources" element={<DataSourceManagement />} />
               </Route>
               <Route path="tickets">
                 <Route index element={<Navigate to="list" replace />} />
@@ -68,10 +75,10 @@ const App: React.FC = () => {
                 <Route path="categories" element={<CategoryManagement />} />
               </Route>
               <Route path="system">
-                <Route path="users" element={<div>用户管理</div>} />
-                <Route path="settings" element={<div>系统设置</div>} />
+                <Route path="users" element={<UserManagement />} />
+                <Route path="settings" element={<SystemSettings />} />
               </Route>
-              <Route path="profile" element={<div>个人资料</div>} />
+              <Route path="profile" element={<Profile />} />
             </Route>
             
             {/* 404 页面 */}

@@ -1,28 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
+  Card,
   Form,
   Input,
-  Select,
   Button,
-  Card,
+  Select,
+  Upload,
   Space,
-  message,
-  Tag,
-  TreeSelect,
-  Switch,
   Row,
   Col,
+  message,
+  Spin,
+  Tag,
+  Divider,
+  Switch,
+  Alert
 } from 'antd';
 import {
   SaveOutlined,
   ArrowLeftOutlined,
-  EyeOutlined,
-  TagsOutlined,
+  UploadOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  EyeOutlined
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useKnowledge, useUI } from '../../hooks';
-import { KnowledgeBase, KnowledgeCategory } from '../../types';
-import type { DataNode } from 'antd/es/tree';
+import { useKnowledge } from '../../hooks/useKnowledge';
+import { useUI } from '../../hooks/useUI';
+import { knowledgeService } from '../../services/knowledge';
+import type { KnowledgeDocument, KnowledgeCategory } from '../../types';
+import type { UploadFile } from 'antd/es/upload/interface';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -30,327 +37,396 @@ const { Option } = Select;
 interface KnowledgeFormData {
   title: string;
   content: string;
-  summary?: string;
-  tags: string[];
   category_id?: string;
-  status: 'draft' | 'published' | 'archived';
+  tags: string[];
+  is_public: boolean;
+  summary?: string;
+  attachments?: UploadFile[];
 }
 
 const KnowledgeForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { setBreadcrumb } = useUI();
-  const {
-    currentKnowledge,
-    categories,
-    tags,
-    loading,
-    fetchKnowledge,
-    fetchCategories,
-    fetchTags,
-    createKnowledge,
-    updateKnowledge,
-    clearCurrentKnowledge,
-  } = useKnowledge();
-
+  const { loading, setLoading } = useUI();
   const [form] = Form.useForm<KnowledgeFormData>();
-  const [isEditing, setIsEditing] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [tagInput, setTagInput] = useState('');
-  const [customTags, setCustomTags] = useState<string[]>([]);
+  
+  const [categories, setCategories] = useState<KnowledgeCategory[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState('');
+  const [attachments, setAttachments] = useState<UploadFile[]>([]);
+  const [isPreview, setIsPreview] = useState(false);
+  const [autoSummary, setAutoSummary] = useState(false);
+  
+  const isEdit = Boolean(id);
 
-  const isEditMode = Boolean(id);
-
-  useEffect(() => {
-    setBreadcrumb([
-      { title: '知识库管理' },
-      { title: '文档列表', path: '/knowledge' },
-      { title: isEditMode ? '编辑文档' : '创建文档' },
-    ]);
-
-    fetchCategories();
-    fetchTags();
-
-    if (isEditMode && id) {
-      fetchKnowledge(id);
+  // 加载分类列表
+  const loadCategories = async () => {
+    try {
+      const response = await knowledgeService.getCategories();
+      setCategories(response);
+    } catch (error) {
+      message.error('加载分类失败');
     }
+  };
 
-    return () => {
-      clearCurrentKnowledge();
-    };
-  }, [setBreadcrumb, isEditMode, id, fetchKnowledge, fetchCategories, fetchTags, clearCurrentKnowledge]);
+  // 加载标签列表
+  const loadTags = async () => {
+    try {
+      const response = await knowledgeService.getTags();
+      setTags(response);
+    } catch (error) {
+      message.error('加载标签失败');
+    }
+  };
 
-  useEffect(() => {
-    if (currentKnowledge && isEditMode) {
+  // 加载文档详情（编辑模式）
+  const loadDocument = async () => {
+    if (!id) return;
+    
+    try {
+      setLoading(true);
+      const document = await knowledgeService.getDocument(id);
+      
       form.setFieldsValue({
-        title: currentKnowledge.title,
-        content: currentKnowledge.content,
-        summary: currentKnowledge.summary,
-        tags: currentKnowledge.tags,
-        category_id: currentKnowledge.category_id,
-        status: currentKnowledge.status,
+        title: document.title,
+        content: document.content,
+        category_id: document.category_id,
+        tags: document.tags || [],
+        is_public: document.is_public,
+        summary: document.summary
       });
-      setCustomTags(currentKnowledge.tags);
-    }
-  }, [currentKnowledge, isEditMode, form]);
-
-  // 构建分类树数据
-  const buildCategoryTreeData = (categories: KnowledgeCategory[]): DataNode[] => {
-    const categoryMap = new Map<string, KnowledgeCategory & { children: KnowledgeCategory[] }>();
-    
-    // 初始化所有分类
-    categories.forEach(category => {
-      categoryMap.set(category.id, { ...category, children: [] });
-    });
-    
-    // 构建树结构
-    const rootCategories: (KnowledgeCategory & { children: KnowledgeCategory[] })[] = [];
-    
-    categories.forEach(category => {
-      const categoryWithChildren = categoryMap.get(category.id)!;
-      if (category.parent_id) {
-        const parent = categoryMap.get(category.parent_id);
-        if (parent) {
-          parent.children.push(categoryWithChildren);
-        }
-      } else {
-        rootCategories.push(categoryWithChildren);
+      
+      if (document.attachments) {
+        setAttachments(document.attachments.map((att, index) => ({
+          uid: `${index}`,
+          name: att.name,
+          status: 'done',
+          url: att.url
+        })));
       }
-    });
-    
-    // 转换为 TreeSelect 组件需要的格式
-    const convertToTreeData = (cats: (KnowledgeCategory & { children: KnowledgeCategory[] })[]): DataNode[] => {
-      return cats.map(cat => ({
-        key: cat.id,
-        value: cat.id,
-        title: cat.name,
-        children: cat.children.length > 0 ? convertToTreeData(cat.children) : undefined,
-      }));
-    };
-    
-    return convertToTreeData(rootCategories);
-  };
-
-  // 处理标签输入
-  const handleTagInputChange = (value: string) => {
-    setTagInput(value);
-  };
-
-  // 添加自定义标签
-  const handleAddTag = () => {
-    if (tagInput && !customTags.includes(tagInput)) {
-      const newTags = [...customTags, tagInput];
-      setCustomTags(newTags);
-      form.setFieldsValue({ tags: newTags });
-      setTagInput('');
+    } catch (error) {
+      message.error('加载文档失败');
+      navigate('/knowledge');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 移除标签
-  const handleRemoveTag = (tagToRemove: string) => {
-    const newTags = customTags.filter(tag => tag !== tagToRemove);
-    setCustomTags(newTags);
-    form.setFieldsValue({ tags: newTags });
-  };
+  useEffect(() => {
+    loadCategories();
+    loadTags();
+    if (isEdit) {
+      loadDocument();
+    }
+  }, [id]);
 
   // 处理表单提交
   const handleSubmit = async (values: KnowledgeFormData) => {
-    setSubmitting(true);
     try {
-      const submitData = {
+      setLoading(true);
+      
+      const formData = {
         ...values,
-        tags: customTags,
+        attachments: attachments.filter(file => file.originFileObj)
       };
 
-      if (isEditMode && id) {
-        await updateKnowledge(id, submitData);
-        message.success('更新成功');
+      if (isEdit) {
+        await knowledgeService.updateDocument(id!, formData);
+        message.success('文档更新成功');
       } else {
-        await createKnowledge(submitData);
-        message.success('创建成功');
+        await knowledgeService.createDocument(formData);
+        message.success('文档创建成功');
       }
       
       navigate('/knowledge');
     } catch (error) {
-      message.error(isEditMode ? '更新失败' : '创建失败');
+      message.error(isEdit ? '文档更新失败' : '文档创建失败');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  // 预览文档
-  const handlePreview = () => {
-    if (isEditMode && id) {
-      navigate(`/knowledge/${id}`);
+  // 生成摘要
+  const handleGenerateSummary = async () => {
+    const content = form.getFieldValue('content');
+    if (!content) {
+      message.warning('请先输入文档内容');
+      return;
+    }
+
+    try {
+      setAutoSummary(true);
+      const summary = await knowledgeService.generateSummary(content);
+      form.setFieldValue('summary', summary);
+      message.success('摘要生成成功');
+    } catch (error) {
+      message.error('摘要生成失败');
+    } finally {
+      setAutoSummary(false);
     }
   };
 
-  // 返回列表
-  const handleBack = () => {
-    navigate('/knowledge');
+  // 自动标记标签
+  const handleAutoTag = async () => {
+    const content = form.getFieldValue('content');
+    if (!content) {
+      message.warning('请先输入文档内容');
+      return;
+    }
+
+    try {
+      const autoTags = await knowledgeService.autoTag(content);
+      const currentTags = form.getFieldValue('tags') || [];
+      const newTags = [...new Set([...currentTags, ...autoTags])];
+      form.setFieldValue('tags', newTags);
+      message.success('标签自动标记成功');
+    } catch (error) {
+      message.error('自动标记失败');
+    }
+  };
+
+  // 添加新标签
+  const handleAddTag = () => {
+    if (newTag && !tags.includes(newTag)) {
+      setTags([...tags, newTag]);
+      const currentTags = form.getFieldValue('tags') || [];
+      form.setFieldValue('tags', [...currentTags, newTag]);
+      setNewTag('');
+    }
+  };
+
+  // 处理文件上传
+  const handleUploadChange = ({ fileList }: { fileList: UploadFile[] }) => {
+    setAttachments(fileList);
+  };
+
+  // 预览内容
+  const renderPreview = () => {
+    const values = form.getFieldsValue();
+    return (
+      <Card title="预览" size="small">
+        <div style={{ marginBottom: '16px' }}>
+          <h2>{values.title || '未命名文档'}</h2>
+          {values.category_id && (
+            <Tag color="blue">
+              {categories.find(c => c.id === values.category_id)?.name}
+            </Tag>
+          )}
+          {values.tags?.map(tag => (
+            <Tag key={tag} color="green">{tag}</Tag>
+          ))}
+          {values.is_public && <Tag color="orange">公开</Tag>}
+        </div>
+        
+        {values.summary && (
+          <Alert
+            message="摘要"
+            description={values.summary}
+            type="info"
+            style={{ marginBottom: '16px' }}
+          />
+        )}
+        
+        <div
+          style={{
+            border: '1px solid #d9d9d9',
+            borderRadius: '6px',
+            padding: '16px',
+            minHeight: '200px',
+            whiteSpace: 'pre-wrap'
+          }}
+        >
+          {values.content || '暂无内容'}
+        </div>
+      </Card>
+    );
   };
 
   return (
-    <div className="knowledge-form">
+    <div style={{ padding: '24px' }}>
       <Card
         title={
           <Space>
             <Button
               icon={<ArrowLeftOutlined />}
-              onClick={handleBack}
+              onClick={() => navigate('/knowledge')}
             >
               返回
             </Button>
-            <span>{isEditMode ? '编辑文档' : '创建文档'}</span>
+            <span>{isEdit ? '编辑文档' : '创建文档'}</span>
           </Space>
         }
         extra={
           <Space>
-            {isEditMode && (
-              <Button
-                icon={<EyeOutlined />}
-                onClick={handlePreview}
-              >
-                预览
-              </Button>
-            )}
+            <Button
+              icon={<EyeOutlined />}
+              onClick={() => setIsPreview(!isPreview)}
+            >
+              {isPreview ? '编辑' : '预览'}
+            </Button>
             <Button
               type="primary"
               icon={<SaveOutlined />}
-              loading={submitting}
+              loading={loading}
               onClick={() => form.submit()}
             >
-              {isEditMode ? '更新' : '创建'}
+              {isEdit ? '更新' : '创建'}
             </Button>
           </Space>
         }
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          initialValues={{
-            status: 'draft',
-            tags: [],
-          }}
-        >
-          <Row gutter={24}>
-            <Col span={16}>
-              <Form.Item
-                name="title"
-                label="文档标题"
-                rules={[
-                  { required: true, message: '请输入文档标题' },
-                  { max: 200, message: '标题长度不能超过200个字符' },
-                ]}
-              >
-                <Input
-                  placeholder="请输入文档标题"
-                  size="large"
-                />
-              </Form.Item>
+        <Spin spinning={loading}>
+          {isPreview ? (
+            renderPreview()
+          ) : (
+            <Form
+              form={form}
+              layout="vertical"
+              onFinish={handleSubmit}
+              initialValues={{
+                is_public: false,
+                tags: []
+              }}
+            >
+              <Row gutter={24}>
+                <Col span={16}>
+                  <Form.Item
+                    name="title"
+                    label="文档标题"
+                    rules={[
+                      { required: true, message: '请输入文档标题' },
+                      { max: 200, message: '标题不能超过200个字符' }
+                    ]}
+                  >
+                    <Input placeholder="请输入文档标题" />
+                  </Form.Item>
 
-              <Form.Item
-                name="summary"
-                label="文档摘要"
-                rules={[
-                  { max: 500, message: '摘要长度不能超过500个字符' },
-                ]}
-              >
-                <TextArea
-                  placeholder="请输入文档摘要（可选）"
-                  rows={3}
-                />
-              </Form.Item>
-
-              <Form.Item
-                name="content"
-                label="文档内容"
-                rules={[
-                  { required: true, message: '请输入文档内容' },
-                ]}
-              >
-                <TextArea
-                  placeholder="请输入文档内容，支持Markdown格式"
-                  rows={20}
-                />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item
-                name="category_id"
-                label="文档分类"
-              >
-                <TreeSelect
-                  placeholder="请选择文档分类"
-                  treeData={buildCategoryTreeData(categories as KnowledgeCategory[])}
-                  allowClear
-                />
-              </Form.Item>
-
-              <Form.Item
-                name="status"
-                label="发布状态"
-                rules={[{ required: true, message: '请选择发布状态' }]}
-              >
-                <Select placeholder="请选择发布状态">
-                  <Option value="draft">草稿</Option>
-                  <Option value="published">已发布</Option>
-                  <Option value="archived">已归档</Option>
-                </Select>
-              </Form.Item>
-
-              <Form.Item
-                label="文档标签"
-              >
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Input.Group compact>
-                    <Input
-                      style={{ width: 'calc(100% - 80px)' }}
-                      placeholder="输入标签名称"
-                      value={tagInput}
-                      onChange={(e) => handleTagInputChange(e.target.value)}
-                      onPressEnter={handleAddTag}
+                  <Form.Item
+                    name="content"
+                    label="文档内容"
+                    rules={[
+                      { required: true, message: '请输入文档内容' }
+                    ]}
+                  >
+                    <TextArea
+                      rows={20}
+                      placeholder="请输入文档内容，支持Markdown格式"
                     />
-                    <Button
-                      type="primary"
-                      icon={<TagsOutlined />}
-                      onClick={handleAddTag}
-                      disabled={!tagInput}
-                    >
-                      添加
-                    </Button>
-                  </Input.Group>
-                  
-                  <div style={{ minHeight: 60, border: '1px dashed #d9d9d9', padding: 8, borderRadius: 4 }}>
-                    {customTags.length > 0 ? (
-                      <Space size={[0, 8]} wrap>
-                        {customTags.map(tag => (
-                          <Tag
-                            key={tag}
-                            closable
-                            onClose={() => handleRemoveTag(tag)}
-                          >
-                            {tag}
-                          </Tag>
-                        ))}
-                      </Space>
-                    ) : (
-                      <div style={{ color: '#999', textAlign: 'center', padding: 16 }}>
-                        暂无标签
-                      </div>
-                    )}
-                  </div>
-                </Space>
-              </Form.Item>
+                  </Form.Item>
 
-              <Form.Item name="tags" hidden>
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
+                  <Form.Item
+                    name="summary"
+                    label={
+                      <Space>
+                        <span>文档摘要</span>
+                        <Button
+                          type="link"
+                          size="small"
+                          loading={autoSummary}
+                          onClick={handleGenerateSummary}
+                        >
+                          自动生成
+                        </Button>
+                      </Space>
+                    }
+                  >
+                    <TextArea
+                      rows={3}
+                      placeholder="请输入文档摘要，或点击自动生成"
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col span={8}>
+                  <Form.Item
+                    name="category_id"
+                    label="文档分类"
+                  >
+                    <Select
+                      placeholder="请选择文档分类"
+                      allowClear
+                    >
+                      {categories.map(category => (
+                        <Option key={category.id} value={category.id}>
+                          {category.name}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+
+                  <Form.Item
+                    name="tags"
+                    label={
+                      <Space>
+                        <span>标签</span>
+                        <Button
+                          type="link"
+                          size="small"
+                          onClick={handleAutoTag}
+                        >
+                          自动标记
+                        </Button>
+                      </Space>
+                    }
+                  >
+                    <Select
+                      mode="multiple"
+                      placeholder="请选择或输入标签"
+                      dropdownRender={menu => (
+                        <div>
+                          {menu}
+                          <Divider style={{ margin: '4px 0' }} />
+                          <Space style={{ padding: '0 8px 4px' }}>
+                            <Input
+                              placeholder="新标签"
+                              value={newTag}
+                              onChange={e => setNewTag(e.target.value)}
+                              onPressEnter={handleAddTag}
+                            />
+                            <Button
+                              type="text"
+                              icon={<PlusOutlined />}
+                              onClick={handleAddTag}
+                            >
+                              添加
+                            </Button>
+                          </Space>
+                        </div>
+                      )}
+                    >
+                      {tags.map(tag => (
+                        <Option key={tag} value={tag}>
+                          {tag}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+
+                  <Form.Item
+                    name="is_public"
+                    label="公开文档"
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+
+                  <Form.Item label="附件">
+                    <Upload
+                      fileList={attachments}
+                      onChange={handleUploadChange}
+                      beforeUpload={() => false}
+                      multiple
+                    >
+                      <Button icon={<UploadOutlined />}>
+                        选择文件
+                      </Button>
+                    </Upload>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Form>
+          )}
+        </Spin>
       </Card>
     </div>
   );
