@@ -14,14 +14,14 @@ import { AlertSeverity, TicketStatus } from '../types';
 const Dashboard: React.FC = () => {
   const { alerts, statistics: alertStats, fetchAlerts, fetchStatistics } = useAlert();
   const { tickets, fetchTickets } = useTicket();
-  const { setBreadcrumb } = useUI();
+  const { setBreadcrumbs } = useUI();
 
   useEffect(() => {
-    setBreadcrumb([{ title: '仪表盘' }]);
+    setBreadcrumbs([{ title: '仪表板' }]);
     fetchStatistics();
     fetchAlerts({ limit: 5, sort: 'created_at', order: 'desc' });
     fetchTickets({ limit: 5, status: 'open' });
-  }, [setBreadcrumb, fetchStatistics, fetchAlerts, fetchTickets]);
+  }, [setBreadcrumbs, fetchStatistics, fetchAlerts, fetchTickets]);
 
   // 告警统计数据
   const alertStatsData = [

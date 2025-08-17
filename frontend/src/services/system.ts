@@ -87,16 +87,15 @@ export const systemService = {
   testEmailConfig: async (config: {
     smtp_host: string;
     smtp_port: number;
-    smtp_username: string;
+    smtp_user: string;
     smtp_password: string;
-    from_address: string;
     test_email: string;
   }): Promise<{
     success: boolean;
     message: string;
   }> => {
     const response = await apiRequest.post('/system/test-email', config);
-    return response.data;
+    return response.data as { success: boolean; message: string; };
   },
 
   // 测试短信配置
@@ -110,7 +109,7 @@ export const systemService = {
     message: string;
   }> => {
     const response = await apiRequest.post('/system/test-sms', config);
-    return response.data;
+    return response.data as { success: boolean; message: string; };
   },
 
   // 测试Webhook配置
@@ -281,7 +280,7 @@ export const systemService = {
     message: string;
   }> => {
     const response = await apiRequest.post(`/system/services/${service_name}/restart`);
-    return response.data;
+    return response.data as { success: boolean; message: string; };
   },
 
   // 获取系统配置模板
@@ -290,6 +289,6 @@ export const systemService = {
     schema: Record<string, any>;
   }> => {
     const response = await apiRequest.get(`/system/config-templates/${type}`);
-    return response.data;
+    return response.data as { template: Record<string, any>; schema: Record<string, any>; };
   },
 };

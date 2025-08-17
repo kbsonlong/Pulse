@@ -32,7 +32,7 @@ const { Option } = Select;
 
 const TicketList: React.FC = () => {
   const navigate = useNavigate();
-  const { setBreadcrumb } = useUI();
+  const { setBreadcrumbs } = useUI();
   const {
     tickets,
     total,
@@ -52,12 +52,12 @@ const TicketList: React.FC = () => {
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
-    setBreadcrumb([
+    setBreadcrumbs([
       { title: '工单管理' },
       { title: '工单列表' },
     ]);
     fetchTickets();
-  }, [setBreadcrumb, fetchTickets]);
+  }, [setBreadcrumbs, fetchTickets]);
 
   // 处理搜索
   const handleSearch = (value: string) => {

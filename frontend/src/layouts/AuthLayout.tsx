@@ -32,7 +32,7 @@ const AuthLayout: React.FC = () => {
             maxWidth: 400,
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
           }}
-          bodyStyle={{ padding: 32 }}
+          styles={{ body: { padding: 32 } }}
         >
           <div
             style={{

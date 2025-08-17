@@ -36,7 +36,7 @@ const initialState: KnowledgeState = {
 
 export const fetchKnowledgeList = createAsyncThunk(
   'knowledge/fetchKnowledgeList',
-  async (params?: any, { rejectWithValue }) => {
+  async (params: any, { rejectWithValue }) => {
     try {
       const response = await knowledgeService.getKnowledgeList(params);
       return response;
@@ -120,7 +120,7 @@ export const fetchCategories = createAsyncThunk(
 
 export const fetchTags = createAsyncThunk(
   'knowledge/fetchTags',
-  async (category?: string, { rejectWithValue }) => {
+  async (category: string | undefined, { rejectWithValue }) => {
     try {
       const tags = await knowledgeService.getTags(category);
       return tags;

@@ -35,7 +35,7 @@ const { confirm } = Modal;
 
 const AlertList: React.FC = () => {
   const navigate = useNavigate();
-  const { setBreadcrumb } = useUI();
+  const { setBreadcrumbs } = useUI();
   const {
     alerts,
     total,
@@ -56,12 +56,12 @@ const AlertList: React.FC = () => {
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
-    setBreadcrumb([
+    setBreadcrumbs([
       { title: '告警管理' },
       { title: '告警列表' },
     ]);
     fetchAlerts();
-  }, [setBreadcrumb, fetchAlerts]);
+  }, [setBreadcrumbs, fetchAlerts]);
 
   // 处理搜索
   const handleSearch = (value: string) => {

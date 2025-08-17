@@ -32,7 +32,7 @@ const { Option } = Select;
 
 const RuleList: React.FC = () => {
   const navigate = useNavigate();
-  const { setBreadcrumb } = useUI();
+  const { setBreadcrumbs } = useUI();
   const {
     rules,
     total,
@@ -52,12 +52,12 @@ const RuleList: React.FC = () => {
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
-    setBreadcrumb([
+    setBreadcrumbs([
       { title: '规则管理' },
       { title: '规则列表' },
     ]);
     fetchRules();
-  }, [setBreadcrumb, fetchRules]);
+  }, [setBreadcrumbs, fetchRules]);
 
   // 处理搜索
   const handleSearch = (value: string) => {

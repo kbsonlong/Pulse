@@ -45,7 +45,7 @@ const initialState: TicketState = {
 
 export const fetchTickets = createAsyncThunk(
   'ticket/fetchTickets',
-  async (params?: any, { rejectWithValue }) => {
+  async (params: any, { rejectWithValue }) => {
     try {
       const response = await ticketService.getTickets(params);
       return response;

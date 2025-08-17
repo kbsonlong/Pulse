@@ -66,8 +66,7 @@ export const userService = {
     const response = await apiRequest.post(`/users/${id}/reset-password`, {
       new_password: newPassword
     });
-    return response.data;
-  },
+    return response.data as { password: string; };},
 
   // 更新用户状态
   updateUserStatus: async (id: string, status: 'active' | 'inactive'): Promise<User> => {
@@ -88,7 +87,7 @@ export const userService = {
     permissions: string[];
   }>> => {
     const response = await apiRequest.get('/users/roles');
-    return response.data;
+    return response.data as Array<{ id: string; name: string; description: string; permissions: string[]; }>;
   },
 
   // 获取部门列表
@@ -98,7 +97,7 @@ export const userService = {
     description?: string;
   }>> => {
     const response = await apiRequest.get('/users/departments');
-    return response.data;
+    return response.data as Array<{ id: string; name: string; description?: string; }>;
   },
 
   // 获取当前用户信息
@@ -132,12 +131,8 @@ export const userService = {
   }> => {
     const formData = new FormData();
     formData.append('avatar', file);
-    const response = await apiRequest.post('/users/me/avatar', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
+    const response = await apiRequest.post('/users/me/avatar', formData);
+    return response.data as { avatar_url: string; };
   },
 
   // 获取用户统计信息
@@ -153,7 +148,7 @@ export const userService = {
     }>
   }> => {
     const response = await apiRequest.get('/users/statistics');
-    return response.data;
+    return response.data as { total: number; active: number; inactive: number; by_role: Record<string, number>; by_department: Record<string, number>; recent_logins: Array<{ date: string; count: number; }>; };
   },
 
   // 搜索用户
@@ -178,25 +173,25 @@ export const userService = {
     status?: 'active' | 'inactive';
     format?: 'csv' | 'excel';
   }): Promise<Blob> => {
-    const response = await apiRequest.get('/users/export', params, {
+    const response = await apiRequest.get('/users/export', {
+      params,
       responseType: 'blob'
     });
-    return response.data;
+    return response.data as Blob;
   },
 
   // 批量导入用户
   importUsers: async (file: File): Promise<{
     success: number;
     failed: number;
-    errors: string[];
+    errors: Array<{
+      row: number;
+      message: string;
+    }>;
   }> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await apiRequest.post('/users/import', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
+    const response = await apiRequest.post('/users/import', formData);
+    return response.data as { success: number; failed: number; errors: Array<{ row: number; message: string; }>; };
   },
 };

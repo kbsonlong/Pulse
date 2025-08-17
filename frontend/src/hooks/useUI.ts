@@ -149,3 +149,4 @@ const useUI = () => {
 };
 
 export default useUI;
+export { useUI };

@@ -51,7 +51,7 @@ interface RuleFormData {
 const RuleForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { setBreadcrumb } = useUI();
+  const { setBreadcrumbs } = useUI();
   const {
     currentRule,
     loading,
@@ -74,7 +74,7 @@ const RuleForm: React.FC = () => {
   const isEdit = !!id;
 
   useEffect(() => {
-    setBreadcrumb([
+    setBreadcrumbs([
       { title: '规则管理', path: '/rules' },
       { title: isEdit ? '编辑规则' : '创建规则' },
     ]);
@@ -89,7 +89,7 @@ const RuleForm: React.FC = () => {
       clearCurrentRule();
       clearError();
     };
-  }, [setBreadcrumb, isEdit, id, fetchRule, clearCurrentRule, clearError]);
+  }, [setBreadcrumbs, isEdit, id, fetchRule, clearCurrentRule, clearError]);
 
   useEffect(() => {
     if (currentRule && isEdit) {

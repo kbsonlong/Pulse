@@ -30,7 +30,7 @@ const { Title, Paragraph } = Typography;
 const AlertDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { setBreadcrumb } = useUI();
+  const { setBreadcrumbs } = useUI();
   const {
     currentAlert: alert,
     loading,
@@ -49,12 +49,12 @@ const AlertDetail: React.FC = () => {
   }, [id, fetchAlert, clearCurrentAlert]);
 
   useEffect(() => {
-    setBreadcrumb([
+    setBreadcrumbs([
       { title: '告警管理' },
       { title: '告警列表', path: '/alerts' },
       { title: '告警详情' },
     ]);
-  }, [setBreadcrumb]);
+  }, [setBreadcrumbs]);
 
   // 返回列表
   const handleBack = () => {

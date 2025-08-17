@@ -50,7 +50,7 @@ interface DataSourceFormData {
 }
 
 const DataSourceManagement: React.FC = () => {
-  const { setBreadcrumb } = useUI();
+  const { setBreadcrumbs } = useUI();
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -62,12 +62,12 @@ const DataSourceManagement: React.FC = () => {
   const [form] = Form.useForm<DataSourceFormData>();
 
   useEffect(() => {
-    setBreadcrumb([
+    setBreadcrumbs([
       { title: '规则管理', path: '/rules' },
       { title: '数据源管理' },
     ]);
     fetchDataSources();
-  }, [setBreadcrumb]);
+  }, [setBreadcrumbs]);
 
   // 获取数据源列表
   const fetchDataSources = async () => {
@@ -535,7 +535,7 @@ const DataSourceManagement: React.FC = () => {
               placeholder="请输入数据源描述"
               rows={3}
             />
-          </TextArea>
+          </Form.Item>
 
           <Divider />
 

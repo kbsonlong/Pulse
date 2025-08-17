@@ -119,7 +119,6 @@ export const ticketService = {
   getTicketStatistics: async (params?: {
     start_time?: string;
     end_time?: string;
-    assignee_id?: string;
   }): Promise<{
     total: number;
     by_status: Record<TicketStatus, number>;
@@ -130,13 +129,12 @@ export const ticketService = {
       median: number;
     };
     trend: Array<{
-      time: string;
-      created: number;
-      resolved: number;
+      date: string;
+      count: number;
     }>;
   }> => {
     const response = await apiRequest.get('/tickets/statistics', params);
-    return response.data;
+    return response.data as { total: number; by_status: Record<TicketStatus, number>; by_priority: Record<TicketPriority, number>; by_assignee: Record<string, number>; resolution_time: { average: number; median: number; }; trend: Array<{ date: string; count: number; }>; };
   },
 
   // 获取我的工单
@@ -186,17 +184,18 @@ export const ticketService = {
 
   // 导出工单数据
   exportTickets: async (params?: {
+    format?: 'csv' | 'excel';
     status?: TicketStatus;
     priority?: TicketPriority;
-    assignee_id?: string;
+    assignee?: string;
     start_time?: string;
     end_time?: string;
-    format?: 'csv' | 'excel';
   }): Promise<Blob> => {
-    const response = await apiRequest.get('/tickets/export', params, {
+    const response = await apiRequest.get('/tickets/export', {
+      params,
       responseType: 'blob'
     });
-    return response.data;
+    return response.data as Blob;
   },
 
   // 从告警创建工单

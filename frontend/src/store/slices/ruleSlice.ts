@@ -32,13 +32,13 @@ const initialState: RuleState = {
 
 export const fetchRules = createAsyncThunk(
   'rule/fetchRules',
-  async (params?: {
+  async (params: {
     page?: number;
     limit?: number;
     search?: string;
     enabled?: boolean;
     data_source_id?: string;
-  }, { rejectWithValue }) => {
+  } | undefined, { rejectWithValue }) => {
     try {
       const response = await ruleService.getRules(params);
       return response;

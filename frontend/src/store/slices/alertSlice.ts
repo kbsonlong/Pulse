@@ -43,7 +43,7 @@ const initialState: AlertState = {
 // 异步actions
 export const fetchAlerts = createAsyncThunk(
   'alert/fetchAlerts',
-  async (query?: AlertQuery, { rejectWithValue }) => {
+  async (query: AlertQuery | undefined, { rejectWithValue }) => {
     try {
       const response = await alertService.getAlerts(query);
       return response;
@@ -103,11 +103,11 @@ export const deleteAlert = createAsyncThunk(
 
 export const fetchStatistics = createAsyncThunk(
   'alert/fetchStatistics',
-  async (params?: {
+  async (params: {
     start_time?: string;
     end_time?: string;
     source?: string;
-  }, { rejectWithValue }) => {
+  } | undefined, { rejectWithValue }) => {
     try {
       const statistics = await alertService.getStatistics(params);
       return statistics;

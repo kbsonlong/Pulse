@@ -188,6 +188,7 @@ export interface ApiResponse<T> {
 }
 
 export interface PaginatedResponse<T> {
+  data: T[];
   items: T[];
   total: number;
   page: number;

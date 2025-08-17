@@ -3,7 +3,7 @@
 # 变量定义
 APP_NAME := alert-management-platform
 BIN_DIR := bin
-CMD_DIR := cmd/alert-management-platform
+CMD_DIR := cmd/server
 DOCKER_IMAGE := $(APP_NAME):latest
 DOCKER_DEV_IMAGE := $(APP_NAME):dev
 GO_VERSION := 1.21

@@ -37,7 +37,7 @@ const { Option } = Select;
 
 const KnowledgeList: React.FC = () => {
   const navigate = useNavigate();
-  const { setBreadcrumb } = useUI();
+  const { setBreadcrumbs } = useUI();
   const {
     knowledgeList,
     categories,
@@ -59,13 +59,13 @@ const KnowledgeList: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
 
   useEffect(() => {
-    setBreadcrumb([
+    setBreadcrumbs([
       { title: '知识库管理' },
       { title: '文档列表' },
     ]);
     fetchKnowledgeList();
     fetchCategories();
-  }, [setBreadcrumb, fetchKnowledgeList, fetchCategories]);
+  }, [setBreadcrumbs, fetchKnowledgeList, fetchCategories]);
 
   // 处理搜索
   const handleSearch = (value: string) => {

@@ -1,126 +1,163 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Card,
+  Typography,
+  Tag,
   Button,
   Space,
-  Tag,
-  Typography,
   Divider,
-  Row,
-  Col,
-  Avatar,
-  Tooltip,
+  Rate,
   message,
   Modal,
-  Rate,
+  Spin,
+  Avatar,
   List,
-  Comment,
+
+  Form,
+  Input,
+  Row,
+  Col
 } from 'antd';
 import {
-  ArrowLeftOutlined,
   EditOutlined,
   DeleteOutlined,
-  LikeOutlined,
-  LikeFilled,
-  EyeOutlined,
   ShareAltOutlined,
-  PrinterOutlined,
-  DownloadOutlined,
-  StarOutlined,
-  StarFilled,
+  LikeOutlined,
+  DislikeOutlined,
+  EyeOutlined,
+  CalendarOutlined,
+  UserOutlined
 } from '@ant-design/icons';
-import { useNavigate, useParams } from 'react-router-dom';
 import { useKnowledge, useUI } from '../../hooks';
-import { KnowledgeBase } from '../../types';
+import { knowledgeService } from '../../services';
+import { Knowledge } from '../../types';
 import { formatDate } from '../../utils';
 
 const { Title, Paragraph, Text } = Typography;
-const { confirm } = Modal;
+const { TextArea } = Input;
+
+interface Comment {
+  id: string;
+  content: string;
+  author: string;
+  createdAt: string;
+  rating?: number;
+}
 
 const KnowledgeDetail: React.FC = () => {
-  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { setBreadcrumb } = useUI();
-  const {
-    currentKnowledge,
-    loading,
-    fetchKnowledge,
-    deleteKnowledge,
-    clearCurrentKnowledge,
-  } = useKnowledge();
-
-  const [liked, setLiked] = useState(false);
-  const [starred, setStarred] = useState(false);
-  const [rating, setRating] = useState(0);
-  const [relatedDocs, setRelatedDocs] = useState<KnowledgeBase[]>([]);
+  const navigate = useNavigate();
+  const { loading, setLoading } = useUI();
+  const [knowledge, setKnowledge] = useState<Knowledge | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [relatedDocs, setRelatedDocs] = useState<Knowledge[]>([]);
+  const [userRating, setUserRating] = useState<number>(0);
+  const [form] = Form.useForm();
 
   useEffect(() => {
     if (id) {
-      fetchKnowledge(id);
+      loadKnowledgeDetail();
+      loadComments();
+      loadRelatedDocs();
     }
+  }, [id]);
 
-    return () => {
-      clearCurrentKnowledge();
-    };
-  }, [id, fetchKnowledge, clearCurrentKnowledge]);
+  const loadKnowledgeDetail = async () => {
+    try {
+      setLoading(true);
+      const response = await knowledgeService.getById(id!);
+      setKnowledge(response.data);
+    } catch (error) {
+      message.error('加载知识库详情失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  useEffect(() => {
-    if (currentKnowledge) {
-      setBreadcrumb([
-        { title: '知识库管理' },
-        { title: '文档列表', path: '/knowledge' },
-        { title: currentKnowledge.title },
+  const loadComments = async () => {
+    try {
+      // 模拟评论数据
+      setComments([
+        {
+          id: '1',
+          content: '这篇文档很有帮助，解决了我的问题。',
+          author: '张三',
+          createdAt: '2024-01-15 10:30:00',
+          rating: 5
+        },
+        {
+          id: '2',
+          content: '内容详细，但是示例可以更多一些。',
+          author: '李四',
+          createdAt: '2024-01-14 15:20:00',
+          rating: 4
+        }
       ]);
+    } catch (error) {
+      console.error('加载评论失败:', error);
     }
-  }, [currentKnowledge, setBreadcrumb]);
-
-  // 返回列表
-  const handleBack = () => {
-    navigate('/knowledge');
   };
 
-  // 编辑文档
+  const loadRelatedDocs = async () => {
+    try {
+      const response = await knowledgeService.getRelated(id!);
+      setRelatedDocs(response.data);
+    } catch (error) {
+      console.error('加载相关文档失败:', error);
+    }
+  };
+
   const handleEdit = () => {
-    if (currentKnowledge) {
-      navigate(`/knowledge/${currentKnowledge.id}/edit`);
-    }
+    navigate(`/knowledge/edit/${id}`);
   };
 
-  // 删除文档
   const handleDelete = () => {
-    if (!currentKnowledge) return;
-
-    confirm({
+    Modal.confirm({
       title: '确认删除',
-      content: `确定要删除文档 "${currentKnowledge.title}" 吗？此操作不可恢复。`,
-      okText: '删除',
-      okType: 'danger',
+      content: '确定要删除这篇知识库文档吗？此操作不可恢复。',
+      okText: '确定',
       cancelText: '取消',
       onOk: async () => {
         try {
-          await deleteKnowledge(currentKnowledge.id);
+          await knowledgeService.delete(id!);
           message.success('删除成功');
           navigate('/knowledge');
         } catch (error) {
           message.error('删除失败');
         }
-      },
+      }
     });
   };
 
-  // 点赞
-  const handleLike = () => {
-    setLiked(!liked);
-    message.success(liked ? '取消点赞' : '点赞成功');
+  const handleRating = async (value: number) => {
+    try {
+      await knowledgeService.rate(id!, value);
+      setUserRating(value);
+      message.success('评分成功');
+    } catch (error) {
+      message.error('评分失败');
+    }
   };
 
-  // 收藏
-  const handleStar = () => {
-    setStarred(!starred);
-    message.success(starred ? '取消收藏' : '收藏成功');
+  const handleAddComment = async (values: { content: string; rating?: number }) => {
+    try {
+      // 这里应该调用实际的API
+      const newComment: Comment = {
+        id: Date.now().toString(),
+        content: values.content,
+        author: '当前用户',
+        createdAt: new Date().toLocaleString(),
+        rating: values.rating
+      };
+      setComments([newComment, ...comments]);
+      form.resetFields();
+      message.success('评论添加成功');
+    } catch (error) {
+      message.error('添加评论失败');
+    }
   };
 
-  // 分享
   const handleShare = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url).then(() => {
@@ -130,230 +167,190 @@ const KnowledgeDetail: React.FC = () => {
     });
   };
 
-  // 打印
-  const handlePrint = () => {
-    window.print();
-  };
-
-  // 下载
-  const handleDownload = () => {
-    if (currentKnowledge) {
-      const element = document.createElement('a');
-      const file = new Blob([currentKnowledge.content], { type: 'text/markdown' });
-      element.href = URL.createObjectURL(file);
-      element.download = `${currentKnowledge.title}.md`;
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-    }
-  };
-
-  // 评分
-  const handleRate = (value: number) => {
-    setRating(value);
-    message.success(`评分：${value}星`);
-  };
-
-  if (loading || !currentKnowledge) {
+  if (loading) {
     return (
-      <Card loading={loading}>
-        <div style={{ height: 400 }} />
-      </Card>
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!knowledge) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Text>知识库文档不存在</Text>
+      </div>
     );
   }
 
   return (
-    <div className="knowledge-detail">
-      <Card
-        title={
-          <Space>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={handleBack}
-            >
-              返回
-            </Button>
-            <span>文档详情</span>
-          </Space>
-        }
-        extra={
-          <Space>
-            <Button
-              icon={<ShareAltOutlined />}
-              onClick={handleShare}
-            >
-              分享
-            </Button>
-            <Button
-              icon={<PrinterOutlined />}
-              onClick={handlePrint}
-            >
-              打印
-            </Button>
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={handleDownload}
-            >
-              下载
-            </Button>
-            <Button
-              icon={<EditOutlined />}
-              type="primary"
-              onClick={handleEdit}
-            >
-              编辑
-            </Button>
-            <Button
-              icon={<DeleteOutlined />}
-              danger
-              onClick={handleDelete}
-            >
-              删除
-            </Button>
-          </Space>
-        }
-      >
-        <Row gutter={24}>
-          <Col span={18}>
-            {/* 文档标题 */}
-            <Title level={1}>{currentKnowledge.title}</Title>
+    <div style={{ padding: '24px' }}>
+      <Row gutter={24}>
+        <Col span={18}>
+          <Card>
+            <div style={{ marginBottom: '24px' }}>
+              <Space style={{ marginBottom: '16px' }}>
+                <Button type="primary" icon={<EditOutlined />} onClick={handleEdit}>
+                  编辑
+                </Button>
+                <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
+                  删除
+                </Button>
+                <Button icon={<ShareAltOutlined />} onClick={handleShare}>
+                  分享
+                </Button>
+              </Space>
+            </div>
 
-            {/* 文档元信息 */}
-            <Space size={16} style={{ marginBottom: 24 }}>
-              <Space>
-                <Avatar src={currentKnowledge.author?.avatar} size="small">
-                  {currentKnowledge.author?.username?.[0]?.toUpperCase()}
-                </Avatar>
-                <Text>{currentKnowledge.author?.username}</Text>
+            <Title level={2}>{knowledge.title}</Title>
+            
+            <div style={{ marginBottom: '24px' }}>
+              <Space wrap>
+                <Text type="secondary">
+                  <UserOutlined /> {knowledge.author}
+                </Text>
+                <Text type="secondary">
+                  <CalendarOutlined /> {formatDate(knowledge.createdAt)}
+                </Text>
+                <Text type="secondary">
+                  <EyeOutlined /> {knowledge.viewCount || 0} 次浏览
+                </Text>
+                <Rate disabled value={knowledge.rating || 0} />
+                <Text type="secondary">({knowledge.ratingCount || 0} 人评分)</Text>
               </Space>
-              <Text type="secondary">
-                创建时间：{formatDate(currentKnowledge.created_at)}
-              </Text>
-              <Text type="secondary">
-                更新时间：{formatDate(currentKnowledge.updated_at)}
-              </Text>
-              <Space>
-                <EyeOutlined />
-                <Text type="secondary">{currentKnowledge.views} 次浏览</Text>
-              </Space>
-              <Space>
-                <Text type="secondary">评分：</Text>
-                <Rate disabled value={currentKnowledge.score} allowHalf />
-                <Text type="secondary">({currentKnowledge.score})</Text>
-              </Space>
-            </Space>
+            </div>
 
-            {/* 文档标签 */}
-            {currentKnowledge.tags && currentKnowledge.tags.length > 0 && (
-              <div style={{ marginBottom: 24 }}>
-                <Space size={[0, 8]} wrap>
-                  {currentKnowledge.tags.map(tag => (
-                    <Tag key={tag} color="blue">{tag}</Tag>
-                  ))}
-                </Space>
+            <div style={{ marginBottom: '24px' }}>
+              <Space wrap>
+                <Tag color="blue">{knowledge.category}</Tag>
+                {knowledge.tags?.map(tag => (
+                  <Tag key={tag}>{tag}</Tag>
+                ))}
+                <Tag color={knowledge.isPublic ? 'green' : 'orange'}>
+                  {knowledge.isPublic ? '公开' : '私有'}
+                </Tag>
+              </Space>
+            </div>
+
+            {knowledge.summary && (
+              <div style={{ marginBottom: '24px' }}>
+                <Title level={4}>摘要</Title>
+                <Paragraph>{knowledge.summary}</Paragraph>
               </div>
-            )}
-
-            {/* 文档摘要 */}
-            {currentKnowledge.summary && (
-              <Card size="small" style={{ marginBottom: 24, backgroundColor: '#f6f8fa' }}>
-                <Text strong>摘要：</Text>
-                <Paragraph style={{ marginBottom: 0, marginTop: 8 }}>
-                  {currentKnowledge.summary}
-                </Paragraph>
-              </Card>
             )}
 
             <Divider />
 
-            {/* 文档内容 */}
-            <div className="knowledge-content">
-              <Paragraph>
-                <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
-                  {currentKnowledge.content}
-                </pre>
-              </Paragraph>
+            <div style={{ marginBottom: '24px' }}>
+              <Title level={4}>内容</Title>
+              <div 
+                style={{ 
+                  lineHeight: '1.8',
+                  fontSize: '14px',
+                  whiteSpace: 'pre-wrap'
+                }}
+                dangerouslySetInnerHTML={{ __html: knowledge.content }}
+              />
             </div>
 
             <Divider />
 
-            {/* 操作按钮 */}
-            <Space size={16}>
-              <Button
-                type={liked ? 'primary' : 'default'}
-                icon={liked ? <LikeFilled /> : <LikeOutlined />}
-                onClick={handleLike}
-              >
-                {liked ? '已点赞' : '点赞'} ({currentKnowledge.likes})
-              </Button>
-              <Button
-                type={starred ? 'primary' : 'default'}
-                icon={starred ? <StarFilled /> : <StarOutlined />}
-                onClick={handleStar}
-              >
-                {starred ? '已收藏' : '收藏'}
-              </Button>
+            <div style={{ marginBottom: '24px' }}>
+              <Title level={4}>评分</Title>
               <Space>
                 <Text>为这篇文档评分：</Text>
-                <Rate value={rating} onChange={handleRate} />
+                <Rate value={userRating} onChange={handleRating} />
               </Space>
-            </Space>
-          </Col>
+            </div>
 
-          <Col span={6}>
-            {/* 文档信息卡片 */}
-            <Card title="文档信息" size="small" style={{ marginBottom: 16 }}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <div>
-                  <Text type="secondary">分类：</Text>
-                  <Tag color="green">
-                    {currentKnowledge.category?.name || '未分类'}
-                  </Tag>
-                </div>
-                <div>
-                  <Text type="secondary">状态：</Text>
-                  <Tag color={
-                    currentKnowledge.status === 'published' ? 'green' :
-                    currentKnowledge.status === 'draft' ? 'orange' : 'default'
-                  }>
-                    {currentKnowledge.status === 'published' ? '已发布' :
-                     currentKnowledge.status === 'draft' ? '草稿' : '已归档'}
-                  </Tag>
-                </div>
-                <div>
-                  <Text type="secondary">浏览次数：</Text>
-                  <Text>{currentKnowledge.views}</Text>
-                </div>
-                <div>
-                  <Text type="secondary">点赞次数：</Text>
-                  <Text>{currentKnowledge.likes}</Text>
-                </div>
-              </Space>
-            </Card>
+            <Divider />
 
-            {/* 相关文档 */}
-            {relatedDocs.length > 0 && (
-              <Card title="相关文档" size="small">
-                <List
-                  size="small"
-                  dataSource={relatedDocs}
-                  renderItem={item => (
-                    <List.Item>
-                      <Button
-                        type="link"
-                        onClick={() => navigate(`/knowledge/${item.id}`)}
-                        style={{ padding: 0, height: 'auto', textAlign: 'left' }}
+            <div>
+              <Title level={4}>评论 ({comments.length})</Title>
+              
+              <Form form={form} onFinish={handleAddComment} style={{ marginBottom: '24px' }}>
+                <Form.Item name="content" rules={[{ required: true, message: '请输入评论内容' }]}>
+                  <TextArea rows={4} placeholder="写下你的评论..." />
+                </Form.Item>
+                <Form.Item name="rating">
+                  <Space>
+                    <Text>评分：</Text>
+                    <Rate />
+                  </Space>
+                </Form.Item>
+                <Form.Item>
+                  <Button type="primary" htmlType="submit">
+                    发表评论
+                  </Button>
+                </Form.Item>
+              </Form>
+
+              <List
+                dataSource={comments}
+                renderItem={comment => (
+                  <List.Item>
+                    <List.Item.Meta
+                      avatar={<Avatar icon={<UserOutlined />} />}
+                      title={
+                        <Space>
+                          <Text strong>{comment.author}</Text>
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            {comment.createdAt}
+                          </Text>
+                        </Space>
+                      }
+                      description={
+                        <div>
+                          <Paragraph style={{ marginBottom: '8px' }}>
+                            {comment.content}
+                          </Paragraph>
+                          {comment.rating && (
+                            <Space>
+                              <Text type="secondary">评分：</Text>
+                              <Rate disabled value={comment.rating} size="small" />
+                            </Space>
+                          )}
+                        </div>
+                      }
+                    />
+                  </List.Item>
+                )}
+              />
+            </div>
+          </Card>
+        </Col>
+        
+        <Col span={6}>
+          <Card title="相关文档" size="small">
+            <List
+              size="small"
+              dataSource={relatedDocs}
+              renderItem={doc => (
+                <List.Item>
+                  <List.Item.Meta
+                    title={
+                      <a 
+                        href={`/knowledge/detail/${doc.id}`}
+                        style={{ fontSize: '14px' }}
                       >
-                        {item.title}
-                      </Button>
-                    </List.Item>
-                  )}
-                />
-              </Card>
-            )}
-          </Col>
-        </Row>
-      </Card>
+                        {doc.title}
+                      </a>
+                    }
+                    description={
+                      <Space>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          {formatDate(doc.createdAt)}
+                        </Text>
+                        <Rate disabled value={doc.rating || 0} size="small" />
+                      </Space>
+                    }
+                  />
+                </List.Item>
+              )}
+            />
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 };
