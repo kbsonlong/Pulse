@@ -1,0 +1,40 @@
+<svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 圆形背景 -->
+  <circle cx="20" cy="20" r="18" fill="#2C3E50" stroke="#FFD700" stroke-width="2"/>
+  
+  <!-- 闪电图标 -->
+  <path d="M15 12L18 18H14L17 28L23 18H19L22 12H15Z" fill="#FFD700" stroke="#FF4757" stroke-width="0.5"/>
+  
+  <!-- 脉搏波 -->
+  <path d="M45 20L48 20L50 15L52 25L54 10L56 30L58 20L75 20" stroke="#FF4757" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- 品牌文字 -->
+  <text x="80" y="16" font-family="Roboto, Arial, sans-serif" font-size="14" font-weight="700" fill="#2C3E50">Pulse</text>
+  <text x="80" y="28" font-family="Roboto, Arial, sans-serif" font-size="8" font-weight="400" fill="#95A5A6">智能告警管理</text>
+  
+  <!-- 动画定义 -->
+  <defs>
+    <style>
+      .pulse-animation {
+        animation: pulse 2s ease-in-out infinite;
+      }
+      .lightning-animation {
+        animation: lightning 1s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.6; }
+        100% { opacity: 1; }
+      }
+      @keyframes lightning {
+        0% { opacity: 1; }
+        50% { opacity: 0.3; }
+        100% { opacity: 1; }
+      }
+    </style>
+  </defs>
+  
+  <!-- 应用动画 -->
+  <use href="#pulse-wave" class="pulse-animation"/>
+  <use href="#lightning" class="lightning-animation"/>
+</svg>

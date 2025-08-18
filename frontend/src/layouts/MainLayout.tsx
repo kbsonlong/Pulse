@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUI } from '../hooks';
+import { LogoIcon } from '../components';
 
 const { Header, Sider, Content } = Layout;
 const { useToken } = theme;
@@ -189,12 +190,30 @@ const MainLayout: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center',
             borderBottom: `1px solid ${token.colorBorder}`,
-            fontSize: 18,
-            fontWeight: 'bold',
-            color: token.colorPrimary,
+            padding: '0 16px',
           }}
         >
-          {sidebarCollapsed ? 'P' : 'Pulse'}
+          <LogoIcon 
+            size={sidebarCollapsed ? 'sm' : 'md'} 
+            animated={true}
+            className="cursor-pointer hover:scale-105 transition-transform"
+          />
+          {!sidebarCollapsed && (
+            <span 
+              style={{
+                marginLeft: 8,
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: '#2C3E50',
+                background: 'linear-gradient(45deg, #FFD700 0%, #FF4757 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            >
+              Pulse
+            </span>
+          )}
         </div>
         <Menu
           mode="inline"

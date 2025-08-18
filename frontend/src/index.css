@@ -11,6 +11,29 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Pulse 品牌色彩变量 */
+  --pulse-lightning-yellow: #FFD700;
+  --pulse-red: #FF4757;
+  --pulse-deep-blue: #2C3E50;
+  --pulse-secondary-blue: #34495E;
+  --pulse-light-gray: #95A5A6;
+  --pulse-dark-gray: #7F8C8D;
+  --pulse-success-green: #2ECC71;
+  --pulse-warning-orange: #F39C12;
+  --pulse-danger-red: #E74C3C;
+  --pulse-info-blue: #3498DB;
+  
+  /* 渐变色彩 */
+  --pulse-gradient-primary: linear-gradient(135deg, var(--pulse-deep-blue) 0%, var(--pulse-secondary-blue) 100%);
+  --pulse-gradient-lightning: linear-gradient(45deg, var(--pulse-lightning-yellow) 0%, #FFA500 100%);
+  --pulse-gradient-pulse: linear-gradient(90deg, var(--pulse-red) 0%, #FF6B7A 100%);
+  
+  /* 阴影效果 */
+  --pulse-shadow-sm: 0 2px 4px rgba(44, 62, 80, 0.1);
+  --pulse-shadow-md: 0 4px 12px rgba(44, 62, 80, 0.15);
+  --pulse-shadow-lg: 0 8px 24px rgba(44, 62, 80, 0.2);
+  --pulse-shadow-glow: 0 0 20px rgba(255, 215, 0, 0.3);
 }
 
 a {
@@ -65,4 +88,106 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+/* Pulse 品牌动画效果 */
+@keyframes pulse-beat {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+@keyframes lightning-flash {
+  0%, 90%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  5%, 15%, 25% {
+    opacity: 0.8;
+    filter: brightness(1.3) drop-shadow(0 0 8px var(--pulse-lightning-yellow));
+  }
+}
+
+@keyframes pulse-wave {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 5px var(--pulse-lightning-yellow);
+  }
+  50% {
+    box-shadow: 0 0 20px var(--pulse-lightning-yellow), 0 0 30px var(--pulse-lightning-yellow);
+  }
+}
+
+@keyframes float-up {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(180deg);
+  }
+}
+
+/* 品牌动画类 */
+.pulse-beat {
+  animation: pulse-beat 2s ease-in-out infinite;
+}
+
+.lightning-flash {
+  animation: lightning-flash 3s ease-in-out infinite;
+}
+
+.pulse-wave {
+  animation: pulse-wave 2s ease-in-out infinite;
+}
+
+.glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.float-up {
+  animation: float-up 6s ease-in-out infinite;
+}
+
+/* 品牌色彩工具类 */
+.text-pulse-yellow {
+  color: var(--pulse-lightning-yellow);
+}
+
+.text-pulse-red {
+  color: var(--pulse-red);
+}
+
+.text-pulse-blue {
+  color: var(--pulse-deep-blue);
+}
+
+.bg-pulse-gradient {
+  background: var(--pulse-gradient-primary);
+}
+
+.shadow-pulse {
+  box-shadow: var(--pulse-shadow-md);
+}
+
+.shadow-pulse-glow {
+  box-shadow: var(--pulse-shadow-glow);
 }
