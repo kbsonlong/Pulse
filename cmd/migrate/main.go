@@ -15,8 +15,9 @@ import (
 func main() {
 	// 定义命令行参数
 	var (
-		action  = flag.String("action", "up", "Migration action: up, down, status, version")
+		action  = flag.String("action", "up", "Migration action: up, down, status, version, force")
 		steps   = flag.String("steps", "1", "Number of steps for down migration")
+		version = flag.String("version", "", "Version to force (required for force action)")
 		envFile = flag.String("env", ".env", "Environment file path")
 	)
 	flag.Parse()
@@ -76,6 +77,19 @@ func main() {
 		)
 		fmt.Printf("Current migration version: %d\n", version)
 		fmt.Printf("Dirty state: %t\n", dirty)
+
+	case "force":
+		if *version == "" {
+			logger.Fatal("Version is required for force action")
+		}
+		versionInt, err := strconv.Atoi(*version)
+		if err != nil {
+			logger.Fatal("Invalid version value", zap.Error(err))
+		}
+		if err := db.ForceMigrationVersion(versionInt); err != nil {
+			logger.Fatal("Failed to force migration version", zap.Error(err))
+		}
+		logger.Info("Migration version forced successfully", zap.Int("version", versionInt))
 
 	default:
 		logger.Fatal("Unknown action", zap.String("action", *action))

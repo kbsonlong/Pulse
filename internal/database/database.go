@@ -278,6 +278,44 @@ func (db *DB) MigrationStatus() (version uint, dirty bool, err error) {
 	return version, dirty, nil
 }
 
+// ForceMigrationVersion 强制设置迁移版本（用于修复dirty状态）
+func (db *DB) ForceMigrationVersion(version int) error {
+	db.logger.Info("Forcing migration version",
+		zap.Int("version", version),
+	)
+
+	// 创建 postgres 驱动实例
+	driver, err := postgres.WithInstance(db.DB.DB, &postgres.Config{
+		MigrationsTable: db.config.MigrationTable,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create postgres driver: %w", err)
+	}
+
+	// 创建 migrate 实例
+	m, err := migrate.NewWithDatabaseInstance(
+		db.config.MigrationPath,
+		"postgres",
+		driver,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+	// 注意：不使用 defer m.Close() 以避免关闭底层数据库连接
+
+	// 强制设置版本
+	err = m.Force(version)
+	if err != nil {
+		return fmt.Errorf("failed to force migration version: %w", err)
+	}
+
+	db.logger.Info("Migration version forced successfully",
+		zap.Int("version", version),
+	)
+
+	return nil
+}
+
 // BeginTx 开始事务
 func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, error) {
 	return db.BeginTxx(ctx, opts)
