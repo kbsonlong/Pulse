@@ -13,7 +13,8 @@ import {
   Tag,
   Tooltip,
   Row,
-  Col
+  Col,
+  Select
 } from 'antd';
 import {
   PlusOutlined,

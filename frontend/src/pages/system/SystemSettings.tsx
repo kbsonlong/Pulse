@@ -30,7 +30,7 @@ import {
 import { useUI } from '../../hooks';
 import { systemService } from '../../services';
 
-const { TabPane } = Tabs;
+// const { TabPane } = Tabs; // 已废弃，使用items格式
 const { Option } = Select;
 const { TextArea } = Input;
 
@@ -246,379 +246,425 @@ const SystemSettingsPage: React.FC = () => {
             </Space>
           </div>
 
-          <Tabs activeKey={activeTab} onChange={setActiveTab}>
-            <TabPane tab="基本设置" key="basic">
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="siteName"
-                    label="站点名称"
-                    rules={[{ required: true, message: '请输入站点名称' }]}
-                  >
-                    <Input placeholder="请输入站点名称" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="adminEmail"
-                    label="管理员邮箱"
-                    rules={[
-                      { required: true, message: '请输入管理员邮箱' },
-                      { type: 'email', message: '请输入有效的邮箱地址' }
-                    ]}
-                  >
-                    <Input placeholder="请输入管理员邮箱" />
-                  </Form.Item>
-                </Col>
-              </Row>
+          <Tabs 
+            activeKey={activeTab} 
+            onChange={setActiveTab}
+            items={[
+              {
+                key: 'basic',
+                label: '基本设置',
+                children: (
+                  <>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="siteName"
+                          label="站点名称"
+                          rules={[{ required: true, message: '请输入站点名称' }]}
+                        >
+                          <Input placeholder="请输入站点名称" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="adminEmail"
+                          label="管理员邮箱"
+                          rules={[
+                            { required: true, message: '请输入管理员邮箱' },
+                            { type: 'email', message: '请输入有效的邮箱地址' }
+                          ]}
+                        >
+                          <Input placeholder="请输入管理员邮箱" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-              <Form.Item
-                name="siteDescription"
-                label="站点描述"
-              >
-                <TextArea rows={3} placeholder="请输入站点描述" />
-              </Form.Item>
+                    <Form.Item
+                      name="siteDescription"
+                      label="站点描述"
+                    >
+                      <TextArea rows={3} placeholder="请输入站点描述" />
+                    </Form.Item>
 
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="timezone"
-                    label="时区"
-                    rules={[{ required: true, message: '请选择时区' }]}
-                  >
-                    <Select placeholder="请选择时区">
-                      <Option value="Asia/Shanghai">Asia/Shanghai</Option>
-                      <Option value="UTC">UTC</Option>
-                      <Option value="America/New_York">America/New_York</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="language"
-                    label="默认语言"
-                    rules={[{ required: true, message: '请选择默认语言' }]}
-                  >
-                    <Select placeholder="请选择默认语言">
-                      <Option value="zh-CN">简体中文</Option>
-                      <Option value="en-US">English</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
-            </TabPane>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="timezone"
+                          label="时区"
+                          rules={[{ required: true, message: '请选择时区' }]}
+                        >
+                          <Select placeholder="请选择时区">
+                            <Option value="Asia/Shanghai">Asia/Shanghai</Option>
+                            <Option value="UTC">UTC</Option>
+                            <Option value="America/New_York">America/New_York</Option>
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="language"
+                          label="默认语言"
+                          rules={[{ required: true, message: '请选择默认语言' }]}
+                        >
+                          <Select placeholder="请选择默认语言">
+                            <Option value="zh-CN">简体中文</Option>
+                            <Option value="en-US">English</Option>
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </>
+                )
+              },
 
-            <TabPane tab="告警设置" key="alert">
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="alertRetentionDays"
-                    label="告警保留天数"
-                    rules={[{ required: true, message: '请输入告警保留天数' }]}
-                  >
-                    <InputNumber min={1} max={365} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="maxAlertsPerPage"
-                    label="每页最大告警数"
-                    rules={[{ required: true, message: '请输入每页最大告警数' }]}
-                  >
-                    <InputNumber min={10} max={100} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-              </Row>
+              {
+                key: 'alert',
+                label: '告警设置',
+                children: (
+                  <>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="alertRetentionDays"
+                          label="告警保留天数"
+                          rules={[{ required: true, message: '请输入告警保留天数' }]}
+                        >
+                          <InputNumber min={1} max={365} style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="maxAlertsPerPage"
+                          label="每页最大告警数"
+                          rules={[{ required: true, message: '请输入每页最大告警数' }]}
+                        >
+                          <InputNumber min={10} max={100} style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="autoResolveHours"
-                    label="自动解决时间(小时)"
-                  >
-                    <InputNumber min={0} max={168} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="enableAlertGrouping"
-                    label="启用告警分组"
-                    valuePropName="checked"
-                  >
-                    <Switch />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </TabPane>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="autoResolveHours"
+                          label="自动解决时间(小时)"
+                        >
+                          <InputNumber min={0} max={168} style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="enableAlertGrouping"
+                          label="启用告警分组"
+                          valuePropName="checked"
+                        >
+                          <Switch />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </>
+                )
+              },
 
-            <TabPane tab="邮件设置" key="email">
-              <Form.Item
-                name="emailEnabled"
-                label="启用邮件通知"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
+              {
+                key: 'email',
+                label: '邮件设置',
+                children: (
+                  <>
+                    <Form.Item
+                      name="emailEnabled"
+                      label="启用邮件通知"
+                      valuePropName="checked"
+                    >
+                      <Switch />
+                    </Form.Item>
 
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="smtpHost"
-                    label="SMTP服务器"
-                    rules={[{ required: true, message: '请输入SMTP服务器' }]}
-                  >
-                    <Input placeholder="请输入SMTP服务器" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="smtpPort"
-                    label="SMTP端口"
-                    rules={[{ required: true, message: '请输入SMTP端口' }]}
-                  >
-                    <InputNumber min={1} max={65535} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-              </Row>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="smtpHost"
+                          label="SMTP服务器"
+                          rules={[{ required: true, message: '请输入SMTP服务器' }]}
+                        >
+                          <Input placeholder="请输入SMTP服务器" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="smtpPort"
+                          label="SMTP端口"
+                          rules={[{ required: true, message: '请输入SMTP端口' }]}
+                        >
+                          <InputNumber min={1} max={65535} style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="smtpUsername"
-                    label="SMTP用户名"
-                    rules={[{ required: true, message: '请输入SMTP用户名' }]}
-                  >
-                    <Input placeholder="请输入SMTP用户名" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="smtpPassword"
-                    label="SMTP密码"
-                    rules={[{ required: true, message: '请输入SMTP密码' }]}
-                  >
-                    <Input.Password placeholder="请输入SMTP密码" />
-                  </Form.Item>
-                </Col>
-              </Row>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="smtpUsername"
+                          label="SMTP用户名"
+                          rules={[{ required: true, message: '请输入SMTP用户名' }]}
+                        >
+                          <Input placeholder="请输入SMTP用户名" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="smtpPassword"
+                          label="SMTP密码"
+                          rules={[{ required: true, message: '请输入SMTP密码' }]}
+                        >
+                          <Input.Password placeholder="请输入SMTP密码" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-              <Form.Item
-                name="smtpSsl"
-                label="启用SSL"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
+                    <Form.Item
+                      name="smtpSsl"
+                      label="启用SSL"
+                      valuePropName="checked"
+                    >
+                      <Switch />
+                    </Form.Item>
 
-              <Form.Item>
-                <Button icon={<PlayCircleOutlined />} onClick={handleTestEmail}>
-                  测试邮件配置
-                </Button>
-              </Form.Item>
+                    <Form.Item>
+                      <Button icon={<PlayCircleOutlined />} onClick={handleTestEmail}>
+                        测试邮件配置
+                      </Button>
+                    </Form.Item>
 
-              {testResults.email && (
-                <Alert
-                  message="邮件测试结果"
-                  description={JSON.stringify(testResults.email, null, 2)}
-                  type={testResults.email.success ? 'success' : 'error'}
-                  style={{ marginTop: '16px' }}
-                />
-              )}
-            </TabPane>
+                    {testResults.email && (
+                      <Alert
+                        message="邮件测试结果"
+                        description={JSON.stringify(testResults.email, null, 2)}
+                        type={testResults.email.success ? 'success' : 'error'}
+                        style={{ marginTop: '16px' }}
+                      />
+                    )}
+                  </>
+                )
+              },
 
-            <TabPane tab="短信设置" key="sms">
-              <Form.Item
-                name="smsEnabled"
-                label="启用短信通知"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
+              {
+                key: 'sms',
+                label: '短信设置',
+                children: (
+                  <>
+                    <Form.Item
+                      name="smsEnabled"
+                      label="启用短信通知"
+                      valuePropName="checked"
+                    >
+                      <Switch />
+                    </Form.Item>
 
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="smsProvider"
-                    label="短信服务商"
-                    rules={[{ required: true, message: '请选择短信服务商' }]}
-                  >
-                    <Select placeholder="请选择短信服务商">
-                      <Option value="aliyun">阿里云</Option>
-                      <Option value="tencent">腾讯云</Option>
-                      <Option value="huawei">华为云</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="smsApiKey"
-                    label="API Key"
-                    rules={[{ required: true, message: '请输入API Key' }]}
-                  >
-                    <Input placeholder="请输入API Key" />
-                  </Form.Item>
-                </Col>
-              </Row>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="smsProvider"
+                          label="短信服务商"
+                          rules={[{ required: true, message: '请选择短信服务商' }]}
+                        >
+                          <Select placeholder="请选择短信服务商">
+                            <Option value="aliyun">阿里云</Option>
+                            <Option value="tencent">腾讯云</Option>
+                            <Option value="huawei">华为云</Option>
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="smsApiKey"
+                          label="API Key"
+                          rules={[{ required: true, message: '请输入API Key' }]}
+                        >
+                          <Input placeholder="请输入API Key" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-              <Form.Item
-                name="smsApiSecret"
-                label="API Secret"
-                rules={[{ required: true, message: '请输入API Secret' }]}
-              >
-                <Input.Password placeholder="请输入API Secret" />
-              </Form.Item>
+                    <Form.Item
+                      name="smsApiSecret"
+                      label="API Secret"
+                      rules={[{ required: true, message: '请输入API Secret' }]}
+                    >
+                      <Input.Password placeholder="请输入API Secret" />
+                    </Form.Item>
 
-              <Form.Item>
-                <Button icon={<PlayCircleOutlined />} onClick={handleTestSms}>
-                  测试短信配置
-                </Button>
-              </Form.Item>
+                    <Form.Item>
+                      <Button icon={<PlayCircleOutlined />} onClick={handleTestSms}>
+                        测试短信配置
+                      </Button>
+                    </Form.Item>
 
-              {testResults.sms && (
-                <Alert
-                  message="短信测试结果"
-                  description={JSON.stringify(testResults.sms, null, 2)}
-                  type={testResults.sms.success ? 'success' : 'error'}
-                  style={{ marginTop: '16px' }}
-                />
-              )}
-            </TabPane>
+                    {testResults.sms && (
+                      <Alert
+                        message="短信测试结果"
+                        description={JSON.stringify(testResults.sms, null, 2)}
+                        type={testResults.sms.success ? 'success' : 'error'}
+                        style={{ marginTop: '16px' }}
+                      />
+                    )}
+                  </>
+                )
+              },
 
-            <TabPane tab="Webhook设置" key="webhook">
-              <Form.Item
-                name="webhookEnabled"
-                label="启用Webhook"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
+              {
+                key: 'webhook',
+                label: 'Webhook设置',
+                children: (
+                  <>
+                    <Form.Item
+                      name="webhookEnabled"
+                      label="启用Webhook"
+                      valuePropName="checked"
+                    >
+                      <Switch />
+                    </Form.Item>
 
-              <Form.Item
-                name="webhookUrl"
-                label="Webhook URL"
-                rules={[{ required: true, message: '请输入Webhook URL' }]}
-              >
-                <Input placeholder="请输入Webhook URL" />
-              </Form.Item>
+                    <Form.Item
+                      name="webhookUrl"
+                      label="Webhook URL"
+                      rules={[{ required: true, message: '请输入Webhook URL' }]}
+                    >
+                      <Input placeholder="请输入Webhook URL" />
+                    </Form.Item>
 
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="webhookSecret"
-                    label="Webhook密钥"
-                  >
-                    <Input.Password placeholder="请输入Webhook密钥" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="webhookTimeout"
-                    label="超时时间(秒)"
-                    rules={[{ required: true, message: '请输入超时时间' }]}
-                  >
-                    <InputNumber min={1} max={60} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-              </Row>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="webhookSecret"
+                          label="Webhook密钥"
+                        >
+                          <Input.Password placeholder="请输入Webhook密钥" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="webhookTimeout"
+                          label="超时时间(秒)"
+                          rules={[{ required: true, message: '请输入超时时间' }]}
+                        >
+                          <InputNumber min={1} max={60} style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-              <Form.Item>
-                <Button icon={<PlayCircleOutlined />} onClick={handleTestWebhook}>
-                  测试Webhook配置
-                </Button>
-              </Form.Item>
+                    <Form.Item>
+                      <Button icon={<PlayCircleOutlined />} onClick={handleTestWebhook}>
+                        测试Webhook配置
+                      </Button>
+                    </Form.Item>
 
-              {testResults.webhook && (
-                <Alert
-                  message="Webhook测试结果"
-                  description={JSON.stringify(testResults.webhook, null, 2)}
-                  type={testResults.webhook.success ? 'success' : 'error'}
-                  style={{ marginTop: '16px' }}
-                />
-              )}
-            </TabPane>
+                    {testResults.webhook && (
+                      <Alert
+                        message="Webhook测试结果"
+                        description={JSON.stringify(testResults.webhook, null, 2)}
+                        type={testResults.webhook.success ? 'success' : 'error'}
+                        style={{ marginTop: '16px' }}
+                      />
+                    )}
+                  </>
+                )
+              },
 
-            <TabPane tab="安全设置" key="security">
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="sessionTimeout"
-                    label="会话超时时间(分钟)"
-                    rules={[{ required: true, message: '请输入会话超时时间' }]}
-                  >
-                    <InputNumber min={5} max={1440} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="passwordMinLength"
-                    label="密码最小长度"
-                    rules={[{ required: true, message: '请输入密码最小长度' }]}
-                  >
-                    <InputNumber min={6} max={32} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-              </Row>
+              {
+                key: 'security',
+                label: '安全设置',
+                children: (
+                  <>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="sessionTimeout"
+                          label="会话超时时间(分钟)"
+                          rules={[{ required: true, message: '请输入会话超时时间' }]}
+                        >
+                          <InputNumber min={5} max={1440} style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="passwordMinLength"
+                          label="密码最小长度"
+                          rules={[{ required: true, message: '请输入密码最小长度' }]}
+                        >
+                          <InputNumber min={6} max={32} style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-              <Row gutter={24}>
-                <Col span={12}>
-                  <Form.Item
-                    name="passwordRequireSpecial"
-                    label="密码需要特殊字符"
-                    valuePropName="checked"
-                  >
-                    <Switch />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="enableTwoFactor"
-                    label="启用双因子认证"
-                    valuePropName="checked"
-                  >
-                    <Switch />
-                  </Form.Item>
-                </Col>
-              </Row>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="passwordRequireSpecial"
+                          label="密码需要特殊字符"
+                          valuePropName="checked"
+                        >
+                          <Switch />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="enableTwoFactor"
+                          label="启用双因子认证"
+                          valuePropName="checked"
+                        >
+                          <Switch />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-              <Form.Item
-                name="maxLoginAttempts"
-                label="最大登录尝试次数"
-                rules={[{ required: true, message: '请输入最大登录尝试次数' }]}
-              >
-                <InputNumber min={3} max={10} style={{ width: '100%' }} />
-              </Form.Item>
-            </TabPane>
+                    <Form.Item
+                      name="maxLoginAttempts"
+                      label="最大登录尝试次数"
+                      rules={[{ required: true, message: '请输入最大登录尝试次数' }]}
+                    >
+                      <InputNumber min={3} max={10} style={{ width: '100%' }} />
+                    </Form.Item>
+                  </>
+                )
+              },
 
-            <TabPane tab="系统维护" key="maintenance">
-              <Card title="备份管理" style={{ marginBottom: '16px' }}>
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Button icon={<DownloadOutlined />} onClick={handleBackup}>
-                    创建备份
-                  </Button>
-                  {backupProgress > 0 && (
-                    <Progress percent={backupProgress} status={backupProgress === 100 ? 'success' : 'active'} />
-                  )}
-                  <Upload
-                    accept=".zip,.tar.gz"
-                    showUploadList={false}
-                    beforeUpload={() => false}
-                  >
-                    <Button icon={<UploadOutlined />}>
-                      恢复备份
-                    </Button>
-                  </Upload>
-                </Space>
-              </Card>
+              {
+                key: 'maintenance',
+                label: '系统维护',
+                children: (
+                  <>
+                    <Card title="备份管理" style={{ marginBottom: '16px' }}>
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        <Button icon={<DownloadOutlined />} onClick={handleBackup}>
+                          创建备份
+                        </Button>
+                        {backupProgress > 0 && (
+                          <Progress percent={backupProgress} status={backupProgress === 100 ? 'success' : 'active'} />
+                        )}
+                        <Upload
+                          accept=".zip,.tar.gz"
+                          showUploadList={false}
+                          beforeUpload={() => false}
+                        >
+                          <Button icon={<UploadOutlined />}>
+                            恢复备份
+                          </Button>
+                        </Upload>
+                      </Space>
+                    </Card>
 
-              <Card title="系统操作">
-                <Space>
-                  <Button danger onClick={handleRestart}>
-                    重启系统
-                  </Button>
-                </Space>
-              </Card>
-            </TabPane>
-          </Tabs>
+                    <Card title="系统操作">
+                      <Space>
+                        <Button danger onClick={handleRestart}>
+                          重启系统
+                        </Button>
+                      </Space>
+                    </Card>
+                  </>
+                )
+              }
+             ]}
+           />
         </Form>
       </Card>
     </div>

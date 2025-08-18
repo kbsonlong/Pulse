@@ -35,7 +35,7 @@ import type { Ticket, TicketStatus, TicketPriority } from '../../types';
 import type { ColumnsType } from 'antd/es/table';
 
 const { RangePicker } = DatePicker;
-const { TabPane } = Tabs;
+// const { TabPane } = Tabs; // 已废弃，使用items属性替代
 
 interface TicketQuery {
   page: number;
@@ -444,60 +444,63 @@ const MyTickets: React.FC = () => {
           activeKey={activeTab}
           onChange={setActiveTab}
           tabBarExtraContent={renderFilters()}
-        >
-          <TabPane
-            tab={
-              <Badge count={assignedTotal} offset={[10, 0]}>
-                <span>分配给我的</span>
-              </Badge>
+          items={[
+            {
+              key: 'assigned',
+              label: (
+                <Badge count={assignedTotal} offset={[10, 0]}>
+                  <span>分配给我的</span>
+                </Badge>
+              ),
+              children: (
+                <Table
+                  columns={columns}
+                  dataSource={assignedTickets}
+                  rowKey="id"
+                  loading={loading}
+                  pagination={{
+                    current: query.page,
+                    pageSize: query.limit,
+                    total: assignedTotal,
+                    showSizeChanger: true,
+                    showQuickJumper: true,
+                    showTotal: (total, range) =>
+                      `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
+                  }}
+                  onChange={handleTableChange}
+                  scroll={{ x: 1200 }}
+                />
+              )
+            },
+            {
+              key: 'created',
+              label: (
+                <Badge count={createdTotal} offset={[10, 0]}>
+                  <span>我创建的</span>
+                </Badge>
+              ),
+              children: (
+                <Table
+                  columns={columns}
+                  dataSource={createdTickets}
+                  rowKey="id"
+                  loading={loading}
+                  pagination={{
+                    current: query.page,
+                    pageSize: query.limit,
+                    total: createdTotal,
+                    showSizeChanger: true,
+                    showQuickJumper: true,
+                    showTotal: (total, range) =>
+                      `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
+                  }}
+                  onChange={handleTableChange}
+                  scroll={{ x: 1200 }}
+                />
+              )
             }
-            key="assigned"
-          >
-            <Table
-              columns={columns}
-              dataSource={assignedTickets}
-              rowKey="id"
-              loading={loading}
-              pagination={{
-                current: query.page,
-                pageSize: query.limit,
-                total: assignedTotal,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) =>
-                  `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
-              }}
-              onChange={handleTableChange}
-              scroll={{ x: 1200 }}
-            />
-          </TabPane>
-          <TabPane
-            tab={
-              <Badge count={createdTotal} offset={[10, 0]}>
-                <span>我创建的</span>
-              </Badge>
-            }
-            key="created"
-          >
-            <Table
-              columns={columns}
-              dataSource={createdTickets}
-              rowKey="id"
-              loading={loading}
-              pagination={{
-                current: query.page,
-                pageSize: query.limit,
-                total: createdTotal,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) =>
-                  `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
-              }}
-              onChange={handleTableChange}
-              scroll={{ x: 1200 }}
-            />
-          </TabPane>
-        </Tabs>
+          ]}
+        />
       </Card>
     </div>
   );
